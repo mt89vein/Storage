@@ -1,0 +1,12 @@
+﻿syntax = "proto3";
+package Storage.Core.Models;
+
+message DataRecord {
+	DataRecordHeader header = 1;
+	bytes body = 2;
+}
+
+message DataRecordHeader {
+	int64 id = 1;
+	int32 length = 2;
+}
