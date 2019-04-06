@@ -3,7 +3,9 @@ using Storage.Core.Abstractions;
 using Storage.Core.Helpers;
 using Storage.Core.Models;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Storage.Core
 {
@@ -45,7 +47,7 @@ namespace Storage.Core
 		public DataRecordIndexStore(string directory)
 		{
 			_tree = new BTree<long, DataRecordIndexPointer>();
-			var fileName = Path.Combine(directory, "index.bin");
+			var fileName = Path.Combine(directory, "data-record-index-pointers.index");
             _bufferedFileWriter = new BufferedFileWriter(GetFileStream(fileName), BufferSize, TimeSpan.FromMilliseconds(500));
 			ReconstituteIndexFromFile(fileName);
 		}
@@ -74,12 +76,26 @@ namespace Storage.Core
 		/// Добавить указатель в индекс.
 		/// </summary>
 		/// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>
+		// TODO: тест на корректность записи в файл.
 		public void AddToIndex(DataRecordIndexPointer recordIndexPointer)
 		{
 			lock (_syncWriteLock)
-			{
-				_tree.Add(recordIndexPointer.DataRecordId, recordIndexPointer);
-                _bufferedFileWriter.Write(recordIndexPointer.GetBytes(), 0, DataRecordIndexPointer.Size);
+            {
+                // добавляем в индекс.
+                _tree.Add(recordIndexPointer.DataRecordId, recordIndexPointer);
+
+                // формируем общий список указателей.
+                var pointers = new List<DataRecordIndexPointer>(recordIndexPointer.AdditionalDataRecordIndexPointers.Length + 1)
+                {
+                    recordIndexPointer
+                };
+                pointers.AddRange(recordIndexPointer.AdditionalDataRecordIndexPointers);
+
+                // сортируем по номерам страниц и последовательно пишем в файл.
+                foreach (var pointer in pointers.OrderBy(p => p.DataPageNumber))
+                {
+                    _bufferedFileWriter.Write(pointer.GetBytes(), 0, DataRecordIndexPointer.Size);
+                }
 			}
 		}
 
@@ -118,6 +134,7 @@ namespace Storage.Core
         /// Прочитать индекс из файла.
         /// </summary>
         /// <param name="fileName">Путь к файлу с индексом.</param>
+        // TODO: написать тест на восстановление индекса из файла (корректность аггрегации многостраничников)
         private void ReconstituteIndexFromFile(string fileName)
         {
             lock (_syncWriteLock)
@@ -135,10 +152,66 @@ namespace Storage.Core
                 {
                     using (var reader = new BinaryReader(fileStream))
                     {
+                        var sameDataRecordIdPointers = new List<DataRecordIndexPointer>(); // список для агрегации.
+
+                        var bytes = reader.ReadBytes(DataRecordIndexPointer.Size);
+                        if (bytes.Length != DataRecordIndexPointer.Size)
+                        {
+                            return;
+                        }
+                        // прочитали первый указатель.
+                        var currentDataRecordIndexPointer = new DataRecordIndexPointer(bytes);
+
+                        // если он всего один, то добавляем и выходим.
+                        if (reader.BaseStream.Position == reader.BaseStream.Length)
+                        {
+                            _tree.Add(currentDataRecordIndexPointer.DataRecordId, currentDataRecordIndexPointer);
+
+                            return;
+                        }
+
+                        // читаем весь файл.
                         while (reader.BaseStream.Position != reader.BaseStream.Length)
                         {
-                            var dataRecordIndexPointer = new DataRecordIndexPointer(reader.ReadBytes(20));
-                            _tree.Add(dataRecordIndexPointer.DataRecordId, dataRecordIndexPointer);
+                            // прочитали следующий указатель.
+                            var data = reader.ReadBytes(DataRecordIndexPointer.Size);
+                            var dataRecordIndexPointer = data.Length == DataRecordIndexPointer.Size 
+                                ? new DataRecordIndexPointer(data) 
+                                : new DataRecordIndexPointer();
+
+                            // если он оказался таким же, какой и ранее, добавляем в список текущих.
+                            if (dataRecordIndexPointer.DataRecordId == currentDataRecordIndexPointer.DataRecordId)
+                            {
+                                sameDataRecordIdPointers.Add(dataRecordIndexPointer);
+
+                                // если это последний элемент, то нам не нужно переходить к следующему циклу.
+                                if (reader.BaseStream.Position != reader.BaseStream.Length)
+                                {
+                                    continue;
+                                }
+                            }
+
+                            if (sameDataRecordIdPointers.Any())
+                            {
+                                // создаем агрегированный указатель на основе текущего
+                                var aggregated = new DataRecordIndexPointer(
+                                    currentDataRecordIndexPointer.DataRecordId,
+                                    currentDataRecordIndexPointer.DataPageNumber,
+                                    currentDataRecordIndexPointer.Offset,
+                                    currentDataRecordIndexPointer.Length,
+                                    sameDataRecordIdPointers.ToArray()
+                                );
+
+                                _tree.Add(aggregated.DataRecordId, aggregated);
+                                sameDataRecordIdPointers.Clear();
+                            }
+                            else
+                            {
+                                _tree.Add(currentDataRecordIndexPointer.DataRecordId, currentDataRecordIndexPointer);
+                            }
+
+                            // заменяем текущий.
+                            currentDataRecordIndexPointer = dataRecordIndexPointer;
                         }
                     }
                 }

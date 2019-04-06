@@ -1,4 +1,5 @@
-﻿using Google.Protobuf;
+﻿using System;
+using Google.Protobuf;
 using System.IO;
 
 namespace Storage.Core.Models
@@ -16,14 +17,14 @@ namespace Storage.Core.Models
         /// <param name="recordId">Идентификатор записи.</param>
         /// <param name="body">Данные для хранения.</param>
         public DataRecord(long recordId, byte[] body)
-		{
-			Header = new DataRecordHeader
-			{
-				Id = recordId,
-				Length = body.Length
-			};
+        {
+            Header = new DataRecordHeader
+            {
+                Id = recordId,
+                Length = body.Length
+            };
 			Body = ByteString.CopyFrom(body);
-		}
+        }
 
 		/// <summary>
 		/// Создает новый инстанс из указанного массива байт.

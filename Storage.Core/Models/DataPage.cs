@@ -91,7 +91,7 @@ namespace Storage.Core.Models
                 var fileStream = new FileStream(
                     _fileName,
                     FileMode.Append,
-                    FileAccess.ReadWrite,
+                    FileAccess.Write,
                     FileShare.Read,
                     _config.BufferSize,
                     FileOptions.SequentialScan
@@ -115,9 +115,9 @@ namespace Storage.Core.Models
             fileInfo.Attributes = FileAttributes.NotContentIndexed;
         }
 
-        public void SetCompleted()
+        private void SetCompleted()
         {
-
+            // делаем пометку, что страница завершена. (например делаем файл readonly, уничтожаем fileWriter.. так как он больше не нужен и т.д)
         }
 
         /// <summary>
@@ -143,20 +143,13 @@ namespace Storage.Core.Models
         }
 
         /// <summary>
-        /// Проверка на вместимость данных в данную страничку.
+        /// Получить количество байт, которое можно записать на данную страницу.
         /// </summary>
-        /// <param name="data">Массив байт.</param>
-        /// <exception cref="DataPageSizeLimitException">Исключение, выбрасывается в случае если переданно данных больше, чем может влезть в одну страницу.</exception>
-        /// <returns>True, если данные влезут в данную страничку.</returns>
-        public bool HasSpaceFor(IReadOnlyCollection<byte> data)
-		{
-            if (data.Count > _config.PageSize)
-            {
-                throw new DataPageSizeLimitException($"Переданное количество байт: {data.Count} превышает максимально допустимое: {_config.PageSize}");
-            }
-
-			return data.Count + _dataFreeOffset <= _config.PageSize;
-		}
+        /// <returns>Количество байт, которое можно записать на данную страницу.</returns>
+        public int GetFreeSpaceLength()
+        {
+            return _config.PageSize - _dataFreeOffset;
+        }
 
 		/// <summary>
 		/// Попытаться записать данные на страницу.
@@ -181,7 +174,13 @@ namespace Storage.Core.Models
 
 					// Сдвигаем оффсет.
                     _dataFreeOffset += data.Length;
-				}
+
+                    if (GetFreeSpaceLength() == 0)
+                    {
+                        SetCompleted();
+                    }
+                }
+
 				return true;
 			}
 			catch (Exception)
@@ -221,5 +220,30 @@ namespace Storage.Core.Models
 				}
 			}
 		}
+
+        public byte[] ReadBytes(int offset, int length)
+        {
+            LastActiveTime = DateTime.UtcNow;
+
+            // TODO: use readerPool
+            using (var fileStream =
+                new FileStream(
+                    _fileName,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite,
+                    _config.BufferSize,
+                    FileOptions.RandomAccess
+                )
+            )
+            {
+                fileStream.Position = offset;
+                using (var reader = new BinaryReader(fileStream))
+                {
+                    return reader.ReadBytes(length);
+                    // TODO: cache record by offset
+                }
+            }
+        }
 	}
 }

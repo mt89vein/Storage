@@ -1,12 +1,12 @@
 ﻿using Storage.Core.Helpers;
 using System;
+using System.Linq;
 
 namespace Storage.Core.Models
 {
     /// <summary>
     /// Указатель на данные на странице данных.
     /// </summary>
-    /// <remarks>TODO: для мульти пейдж записи, требуется модификация индекса, чтобы для одной записи были ссылки на несколько страниц с разными оффсетами и length.</remarks>
     public readonly struct DataRecordIndexPointer : IEquatable<DataRecordIndexPointer>
 	{
 		#region Константы
@@ -20,20 +20,33 @@ namespace Storage.Core.Models
 
 		#region Конструкторы
 
-		/// <summary>
-		/// Инициализирует указатель на данные на странице данных.
-		/// </summary>
-		/// <param name="recordId">Идентификатор записи.</param>
-		/// <param name="pageNumber">Номер страницы.</param>
-		/// <param name="offset">Сдвиг по странице.</param>
-		/// <param name="length">Длина данных.</param>
-		public DataRecordIndexPointer(long recordId, int pageNumber, int offset, int length)
+        /// <summary>
+        /// Инициализирует указатель на данные на странице данных.
+        /// </summary>
+        /// <param name="recordId">Идентификатор записи.</param>
+        /// <param name="pageNumber">Номер страницы.</param>
+        /// <param name="offset">Сдвиг по странице.</param>
+        /// <param name="length">Длина данных.</param>
+        /// <param name="additionalDataRecordIndexPointers">Ссылки на другие части мультистраничной записи.</param>
+        public DataRecordIndexPointer(long recordId, int pageNumber, int offset, int length, params DataRecordIndexPointer[] additionalDataRecordIndexPointers)
 			: this()
 		{
 			DataRecordId = recordId;
 			DataPageNumber = pageNumber;
 			Offset = offset;
 			Length = length;
+
+            if (additionalDataRecordIndexPointers.Any(p => p.DataRecordId != recordId))
+            {
+                throw new ArgumentException("Для добавление в индекс все указатели должны иметь один и тот же DataRecordId");
+            }
+
+            if (additionalDataRecordIndexPointers.Any(p => p.AdditionalDataRecordIndexPointers?.Any() == true))
+            {
+                throw new ArgumentException("Дополнительный указатель не может иметь свои дополнительные указатели.");
+            }
+
+            AdditionalDataRecordIndexPointers = additionalDataRecordIndexPointers;
 		}
 
 		/// <summary>
@@ -78,6 +91,11 @@ namespace Storage.Core.Models
 		/// </summary>
 		/// <remarks>2 gb максимум</remarks>
 		public int Length { get; }
+
+        /// <summary>
+        /// Ссылки на другие части мультистраничной записи.
+        /// </summary>
+        public DataRecordIndexPointer[] AdditionalDataRecordIndexPointers { get; }
 
 		#endregion Свойства
 

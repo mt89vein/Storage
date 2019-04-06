@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using Storage.Core.Configuration;
 
 namespace Storage.Core
@@ -50,7 +51,7 @@ namespace Storage.Core
         {
             Name = name;
             PageSize = pageSize;
-            Directory = directory;
+            Directory = Path.Combine(directory, Name);
             AutoFlushInterval = autoFlushInterval ?? TimeSpan.FromMilliseconds(500);
         }
     }
