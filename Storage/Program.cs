@@ -3,6 +3,7 @@ using Storage.Core.Models;
 using System;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace Storage
 {
@@ -20,8 +21,8 @@ namespace Storage
 			_dataPageManager.Save(new DataRecord(3, Encoding.UTF8.GetBytes(new string('3', 412))));
             _dataPageManager.Save(new DataRecord(4, Encoding.UTF8.GetBytes(new string('4', 421124))));
 
+            Thread.Sleep(1000); // даём время на срабатывание автосохранения.
             var dataRecord1 = _dataPageManager.Read(1);
-			var dataRecord12 = _dataPageManager.Read(12);
 			var dataRecord2 = _dataPageManager.Read(2);
             var dataRecord3 = _dataPageManager.Read(3);
 			var dataRecord4 = _dataPageManager.Read(4);

@@ -1,24 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using Storage.Core.Configuration;
+﻿using Storage.Core.Configuration;
 using Storage.Core.Helpers;
+using System;
+using System.IO;
 
 namespace Storage.Core.Models
 {
-	/*
-	 *  Зона ответственности: чтение с файла, запись в файл.
+    /*
+	 *  Зона ответственности: чтение с потока, запись в поток.
 	 */
 
-    // TODO: сделать IDisposable (очищение выделенных ресурсов с сохранением на диск), IDestroyable (т.е. уничтожение безвозвратное)
+    // TODO: сделать Destroy (т.е. уничтожение безвозвратное)
 
-	/// <summary>
-	/// Страница данных.
-	/// </summary>
-	public class DataPage
+    /// <summary>
+    /// Страница данных.
+    /// </summary>
+    public class DataPage : IDisposable
 	{
 		/// <summary>
-		/// Поток для записи в файл. TODO: DISPOSE.
+		/// Поток для записи в файл.
 		/// <para>
 		///  Инициализируется, только если в файл можно записать хоть какие-то данные.
 		/// </para>
@@ -115,17 +114,20 @@ namespace Storage.Core.Models
             fileInfo.Attributes = FileAttributes.NotContentIndexed;
         }
 
+        /// <summary>
+        /// Пометить завершенным.
+        /// </summary>
         private void SetCompleted()
         {
-            // делаем пометку, что страница завершена. (например делаем файл readonly, уничтожаем fileWriter.. так как он больше не нужен и т.д)
+            // TODO: делаем пометку, что страница завершена. (например делаем файл readonly, уничтожаем fileWriter.. так как он больше не нужен и т.д)
         }
 
         /// <summary>
         /// Прочитать всю страницу (заголовки записей)
         /// </summary>
-        /// <remarks>Можно использовать для поиска без индекса (по id) или перестроить индекс.</remarks>
         private void SequenceScan()
         {
+            // TODO: Можно использовать для поиска без индекса (по id) или перестроить индекс.
             //using (var fileStream = new FileStream(_fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, _config.BufferSize, FileOptions.SequentialScan))
             //{
             //    // Переходим в начало потока.
@@ -198,29 +200,15 @@ namespace Storage.Core.Models
 		/// <returns>Запись.</returns>
 		public DataRecord Read(int offset, int length)
 		{
-			LastActiveTime = DateTime.UtcNow;
+            return new DataRecord(ReadBytes(offset, length));
+        }
 
-			// TODO: use readerPool
-			using (var fileStream =
-				new FileStream(
-					_fileName,
-					FileMode.Open,
-					FileAccess.Read,
-					FileShare.ReadWrite,
-					_config.BufferSize,
-					FileOptions.RandomAccess
-				)
-			)
-			{
-				fileStream.Position = offset;
-				using (var reader = new BinaryReader(fileStream))
-				{
-					return new DataRecord(reader.ReadBytes(length));
-					// TODO: cache record by offset
-				}
-			}
-		}
-
+        /// <summary>
+        /// Получить массив байт.
+        /// </summary>
+        /// <param name="offset">Сдвиг.</param>
+        /// <param name="length">Длина для чтения.</param>
+        /// <returns>Массив байт.</returns>
         public byte[] ReadBytes(int offset, int length)
         {
             LastActiveTime = DateTime.UtcNow;
@@ -245,5 +233,14 @@ namespace Storage.Core.Models
                 }
             }
         }
-	}
+
+        /// <summary>
+        /// Высвобождает неуправляемые ресурсы.
+        /// </summary>
+        public void Dispose()
+        {
+            // TODO: uncache.
+            _bufferedFileWriter?.Dispose();
+        }
+    }
 }

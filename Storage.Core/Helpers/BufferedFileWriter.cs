@@ -7,7 +7,7 @@ namespace Storage.Core.Helpers
     /// <summary>
     /// Эффективным образом осуществляет запись в файл на диск.
     /// </summary>
-    internal class BufferedFileWriter : IDisposable
+    public class BufferedFileWriter : IDisposable
     {
         #region Поля, свойства
 
@@ -61,26 +61,12 @@ namespace Storage.Core.Helpers
         public int Position => (int)_bufferedStream.Position;
 
         /// <summary>
-        /// Записать на диск, если есть изменения.
-        /// </summary>
-        public void FlushToDisk()
-        {
-            if (LastFlushedOffset == _bufferedStream.Position)
-            {
-                return;
-            }
-
-            _bufferedStream.Flush();
-            LastFlushedOffset = Position;
-        }
-
-        /// <summary>
         /// Сохраняет несохраненные данные и освобождает неуправляемые ресурсы.
         /// </summary>
         public void Dispose()
         {
             StopTimer();
-            FlushToDisk();
+            FlushToDisk(force: true);
             _bufferedStream.Dispose();
             _autoFlushTimer.Dispose();
         }
@@ -95,6 +81,23 @@ namespace Storage.Core.Helpers
         private void StopTimer()
         {
             _autoFlushTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        }
+
+        /// <summary>
+        /// Записать на диск, если есть изменения.
+        /// </summary>
+        private void FlushToDisk(bool force = false)
+        {
+            if (!force && LastFlushedOffset == _bufferedStream?.Position)
+            {
+                return;
+            }
+
+            if (_bufferedStream != null)
+            {
+                _bufferedStream.Flush();
+                LastFlushedOffset = Position;
+            }
         }
 
         #endregion Методы (private)

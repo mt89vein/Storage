@@ -7,6 +7,7 @@ using Storage.Core.Abstractions;
 
 namespace Storage.Core.FileNamingStrategies
 {
+    // TODO: тесты
 	/// <summary>
 	/// Стратегия формирования названия файлов по иерархии.
 	/// </summary>

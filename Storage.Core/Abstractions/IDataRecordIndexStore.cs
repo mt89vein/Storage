@@ -1,12 +1,13 @@
-﻿using Storage.Core.Models;
+﻿using System;
+using Storage.Core.Models;
 
 namespace Storage.Core.Abstractions
 {
 	/// <summary>
 	/// Индекс по <see cref="DataRecord.Id"/>
 	/// </summary>
-	public interface IDataRecordIndexStore
-	{
+	public interface IDataRecordIndexStore : IDisposable
+    {
 		/// <summary>
 		/// Попытаться найти из индекса.
 		/// </summary>

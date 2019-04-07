@@ -127,18 +127,21 @@ namespace Storage.Core.Models
 		public bool Equals(DataRecordIndexPointer other)
 		{
 			return DataRecordId == other.DataRecordId &&
-				   DataPageNumber == other.DataPageNumber &&
-				   Offset == other.Offset &&
-				   Length == other.Length;
-		}
+                   DataPageNumber == other.DataPageNumber &&
+                   Offset == other.Offset &&
+                   Length == other.Length;
+        }
 
 		public override int GetHashCode()
-		{
-			var hashCode = 386508603;
-			hashCode = hashCode * -1521134295 + DataRecordId.GetHashCode();
-			hashCode = hashCode * -1521134295 + DataPageNumber.GetHashCode();
-			hashCode = hashCode * -1521134295 + Offset.GetHashCode();
-			hashCode = hashCode * -1521134295 + Length.GetHashCode();
+        {
+            const int offset = 386508603;
+            const int multiplier = -1521134295;
+
+            var hashCode = offset;
+			hashCode = hashCode * multiplier + DataRecordId.GetHashCode();
+			hashCode = hashCode * multiplier + DataPageNumber.GetHashCode();
+			hashCode = hashCode * multiplier + Offset.GetHashCode();
+			hashCode = hashCode * multiplier + Length.GetHashCode();
 			return hashCode;
 		}
 

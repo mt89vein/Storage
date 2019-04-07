@@ -1,5 +1,4 @@
-﻿using System;
-using Google.Protobuf;
+﻿using Google.Protobuf;
 using System.IO;
 
 namespace Storage.Core.Models
@@ -18,12 +17,14 @@ namespace Storage.Core.Models
         /// <param name="body">Данные для хранения.</param>
         public DataRecord(long recordId, byte[] body)
         {
+			Body = ByteString.CopyFrom(body);
             Header = new DataRecordHeader
             {
                 Id = recordId,
-                Length = body.Length
+                Length = Body.Length
             };
-			Body = ByteString.CopyFrom(body);
+
+            Header.Length = CalculateSize();
         }
 
 		/// <summary>
@@ -37,7 +38,7 @@ namespace Storage.Core.Models
 
         #endregion Конструкторы
 
-        #region Методы
+        #region Методы (public)
 
         /// <summary>
         /// Прочитать заголовок из потока.
@@ -54,16 +55,20 @@ namespace Storage.Core.Models
         /// </summary>
         public byte[] GetBytes() => this.ToByteArray();
 
-		/// <summary>
-		/// Прочитать из массива байт.
-		/// </summary>
-		/// <param name="bytes">Массив байт.</param>
-		public void ReadFrom(byte[] bytes)
-		{
-			var dataRecord = Parser.ParseFrom(bytes);
-			MergeFrom(dataRecord);
-		}
+        #endregion Методы (public)
 
-		#endregion Методы
-	}
+        #region Методы (private)
+
+        /// <summary>
+        /// Прочитать из массива байт.
+        /// </summary>
+        /// <param name="bytes">Массив байт.</param>
+        private void ReadFrom(byte[] bytes)
+        {
+            var dataRecord = Parser.ParseFrom(bytes);
+            MergeFrom(dataRecord);
+        }
+
+        #endregion Методы (private)
+    }
 }

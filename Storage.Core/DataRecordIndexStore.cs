@@ -76,7 +76,6 @@ namespace Storage.Core
 		/// Добавить указатель в индекс.
 		/// </summary>
 		/// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>
-		// TODO: тест на корректность записи в файл.
 		public void AddToIndex(DataRecordIndexPointer recordIndexPointer)
 		{
 			lock (_syncWriteLock)
@@ -98,6 +97,15 @@ namespace Storage.Core
                 }
 			}
 		}
+
+        /// <summary>
+        /// Высвобождаем выделенные неуправляемые ресурсы.
+        /// </summary>
+        public void Dispose()
+        {
+            _tree?.Dispose();
+            _bufferedFileWriter?.Dispose();
+        }
 
         #endregion Методы (public)
 
@@ -134,7 +142,6 @@ namespace Storage.Core
         /// Прочитать индекс из файла.
         /// </summary>
         /// <param name="fileName">Путь к файлу с индексом.</param>
-        // TODO: написать тест на восстановление индекса из файла (корректность аггрегации многостраничников)
         private void ReconstituteIndexFromFile(string fileName)
         {
             lock (_syncWriteLock)

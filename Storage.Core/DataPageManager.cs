@@ -1,96 +1,109 @@
-﻿using System;
+﻿using Storage.Core.Abstractions;
+using Storage.Core.FileNamingStrategies;
 using Storage.Core.Models;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
-using Storage.Core.Abstractions;
-using Storage.Core.FileNamingStrategies;
 
 namespace Storage.Core
 {
-	/*
-	 * Зона ответственности: управление списком DataPage, обновление индекса при вставке, управление созданием  новых страничек, метод для очистки старых.
+    /*
+	 * Зона ответственности: управление списком DataPage, обновление индекса при вставке, управление созданием новых страничек, метод для очистки старых.
 	 * Загрузка из диска индексов и имеющихся страниц данных (карта)
 	 */
-	/// <summary>
-	/// Менеджер страниц данных.
-	/// </summary>
-	public sealed class DataPageManager // TODO: IDisposable
+    /// <summary>
+    /// Менеджер страниц данных.
+    /// </summary>
+    public sealed class DataPageManager : IDisposable
 	{
-		/// <summary>
-		/// Список страниц данных.
-		/// </summary>
-		private readonly ConcurrentDictionary<int, DataPage> _dataPages;
+        #region Поля
 
-		/// <summary>
-		/// Индекс по <see cref="DataRecord.Id"/>
-		/// </summary>
-		private readonly IDataRecordIndexStore _dataRecordIndexStore;
+        /// <summary>
+        /// Список страниц данных.
+        /// </summary>
+        private readonly ConcurrentDictionary<int, DataPage> _dataPages;
+
+        /// <summary>
+        /// Индекс по <see cref="DataRecord.Id"/>
+        /// </summary>
+        private readonly IDataRecordIndexStore _dataRecordIndexStore;
 
         /// <summary>
         /// Конфигурация менеджера страниц.
         /// </summary>
         private readonly DataPageManagerConfig _config;
 
-		/// <summary>
-		/// Стратегия формирования названия файлов.
-		/// </summary>
-		private readonly IFileNamingStrategy _dataPageFileNamingStrategy;
+        /// <summary>
+        /// Стратегия формирования названия файлов.
+        /// </summary>
+        private readonly IFileNamingStrategy _dataPageFileNamingStrategy;
 
-		/// <summary>
-		/// Название менеджера страниц.
-		/// </summary>
-		public string Name { get; }
+        /// <summary>
+        /// Лок объект для создания страницы.
+        /// </summary>
+        private readonly object _createDataPageLock = new object();
 
-		/// <summary>
-		/// Количество страниц.
-		/// </summary>
-		public int DataPagesCount => _dataPages.Count;
+        #endregion Поля
 
-		/// <summary>
-		/// Номер следующей страницы.
-		/// </summary>
-		private int NextDataPageNumber => _dataPages.IsEmpty 
-			? 1 
-			: _dataPages.Keys.Max() + 1;
+        #region Свойства
 
-		/// <summary>
-		/// Лок объект для создания страницы.
-		/// </summary>
-		private readonly object _createDataPageLock = new object();
+        /// <summary>
+        /// Название менеджера страниц.
+        /// </summary>
+        public string Name { get; }
 
-		/// <summary>
-		/// Создает менеджера страниц данных.
-		/// </summary>
-		public DataPageManager(DataPageManagerConfig config)
-		{
+        /// <summary>
+        /// Количество страниц.
+        /// </summary>
+        public int DataPagesCount => _dataPages.Count;
+
+        /// <summary>
+        /// Номер следующей страницы.
+        /// </summary>
+        private int NextDataPageNumber => _dataPages.IsEmpty
+            ? 1
+            : _dataPages.Keys.Max() + 1;
+
+        #endregion Свойства
+
+        #region Конструктор
+
+        /// <summary>
+        /// Создает менеджера страниц данных.
+        /// </summary>
+        public DataPageManager(DataPageManagerConfig config)
+        {
             _config = config;
-			if (!Directory.Exists(_config.Directory))
-			{
-				Directory.CreateDirectory(_config.Directory);
-			}
+            if (!Directory.Exists(_config.Directory))
+            {
+                Directory.CreateDirectory(_config.Directory);
+            }
 
-			_dataPageFileNamingStrategy = new HierarchyFileNamingStrategy(_config.Directory);
-			_dataPages = new ConcurrentDictionary<int, DataPage>();
-			_dataRecordIndexStore = new DataRecordIndexStore(_config.Directory);
-			LoadMetaData();
-		}
+            Name = config.Name;
+            _dataPageFileNamingStrategy = new HierarchyFileNamingStrategy(_config.Directory);
+            _dataPages = new ConcurrentDictionary<int, DataPage>();
+            _dataRecordIndexStore = new DataRecordIndexStore(_config.Directory);
+            LoadMetaData();
+        }
 
+        #endregion Конструктор
+
+        #region Методы (public)
+        
         /// <summary>
         /// Сохранить данные на диск.
         /// </summary>
         /// <param name="record">Модель данных.</param>
-        /// TODO: реализовать multipage хранение.
         public void Save(DataRecord record)
-		{
-			var data = record.GetBytes();
+        {
+            var data = record.GetBytes();
             var dataLength = data.Length;
 
             // пишем последовательно, поэтому получаем всегда для записи последнюю страницу.
-			var currentDataPage = GetLastPage();
+            var currentDataPage = GetLastPage();
             // узнаем, сколько можно записать в текущую страницу:
             var freeSpaceLength = currentDataPage.GetFreeSpaceLength();
 
@@ -148,34 +161,23 @@ namespace Storage.Core
             );
         }
 
-		/// <summary>
-		/// Получить последнюю страницу данных.
-		/// </summary>
-		/// <returns>Страница данных.</returns>
-		public DataPage GetLastPage()
+        /// <summary>
+        /// Получить контейнер по идентификатору.
+        /// </summary>
+        /// <param name="recordId">Идентификатор записи.</param>
+        /// <returns>Контейнер данных.</returns>
+        public DataRecord Read(long recordId)
         {
-            return _dataPages.IsEmpty 
-                ? CreateNew() 
-                : _dataPages.LastOrDefault().Value;
-        }
+            if (!_dataRecordIndexStore.TryGetIndex(recordId, out var index))
+            {
+                // TODO: implement FULL SCAN (для мультистраничников читать до тех пор, пока номер записи не изменится.
+                // можно сделать счетчик индекс миссов, и если по-какому то из dataPage слишком много миссов, то нужно перестроить индекс, побыстрому в фоне.
+                // DataPageHeader.DataRecordStartId добавить в заголовок и поиск упрощается в разы:
+                // _dataPages.FirstOrDefault(dp => dp.PageId.DataRecordStartId >= dataRecordId) и сканить уже по найденной странице. Если не удалось и так найти.. то тут косяк, надо бежать по всем страницам...)
 
-		/// <summary>
-		/// Получить контейнер по идентификатору.
-		/// </summary>
-		/// <param name="recordId">Идентификатор записи.</param>
-		/// <returns>Контейнер данных.</returns>
-		public DataRecord Read(long recordId)
-		{
-			if (!_dataRecordIndexStore.TryGetIndex(recordId, out var index))
-			{
-				// TODO: implement FULL SCAN (для мультистраничников читать до тех пор, пока номер записи не изменится.
-				// можно сделать счетчик индекс миссов, и если по-какому то из dataPage слишком много миссов, то нужно перестроить индекс, побыстрому в фоне.
-				// DataPageHeader.DataRecordStartId добавить в заголовок и поиск упрощается в разы:
-				// _dataPages.FirstOrDefault(dp => dp.PageId.DataRecordStartId >= dataRecordId) и сканить уже по найденной странице. Если не удалось и так найти.. то тут косяк, надо бежать по всем страницам...)
-
-				// Учесть тот факт, что в файл данные могут писаться не по порядку.
-				return null;
-			}
+                // Учесть тот факт, что в файл данные могут писаться не по порядку.
+                return null;
+            }
 
             var dataPage = GetDataPage(index.DataPageNumber);
 
@@ -183,8 +185,6 @@ namespace Storage.Core
             {
                 return dataPage.Read(index.Offset, index.Length);
             }
-
-
 
             using (var memoryStream = new MemoryStream())
             {
@@ -205,15 +205,29 @@ namespace Storage.Core
                 // возвращаем агреггированную запись.
                 return new DataRecord(memoryStream.ToArray());
             }
-		}
+        }
 
-		#region Методы (private)
+        /// <summary>
+        /// Высвобождает неуправляемые ресурсы.
+        /// </summary>
+        public void Dispose()
+        {
+            _dataRecordIndexStore?.Dispose();
+            foreach (var dataPage in _dataPages)
+            {
+                dataPage.Value?.Dispose();
+            }
+        }
 
-		/// <summary>
-		/// Создать новую страницу.
-		/// </summary>
-		/// <returns>Новая страница.</returns>
-		private DataPage CreateNew()
+        #endregion Методы (public)
+
+        #region Методы (private)
+
+        /// <summary>
+        /// Создать новую страницу.
+        /// </summary>
+        /// <returns>Новая страница.</returns>
+        private DataPage CreateNew()
 		{
 			lock (_createDataPageLock)
 			{
@@ -248,12 +262,10 @@ namespace Storage.Core
             {
                 var files = _dataPageFileNamingStrategy.GetFiles();
 
-                // если нужна ленивая инициализация, то можно это убрать, тогда GetDataPage будет инициализировать при обращении.
-
-                //foreach (var file in files.Reverse().Skip(1))
-				//{
-				//	AddDataPage(new DataPage(_config.DataPageConfig, file.Key, file.Value, true));
-				//}
+                foreach (var file in files.Reverse().Skip(1))
+                {
+                    AddDataPage(new DataPage(_config.DataPageConfig, file.Key, file.Value, true));
+                }
 
                 if (files.Any())
                 {
@@ -306,6 +318,17 @@ namespace Storage.Core
             return true;
         }
 
-		#endregion Методы (private)
-	}
+        /// <summary>
+        /// Получить последнюю страницу данных.
+        /// </summary>
+        /// <returns>Страница данных.</returns>
+        private DataPage GetLastPage()
+        {
+            return _dataPages.IsEmpty
+                ? CreateNew()
+                : _dataPages.LastOrDefault().Value;
+        }
+
+        #endregion Методы (private)
+    }
 }
