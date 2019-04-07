@@ -52,13 +52,16 @@ namespace Storage.Core.Helpers
         /// <param name="data">Массив данных.</param>
         /// <param name="offset">Отступ.</param>
         /// <param name="count">Длина.</param>
-        public void Write(byte[] data, int offset, int count) => _bufferedStream.Write(data, offset, count);
+        public void Write(byte[] data, int offset, int count)
+        {
+            _bufferedStream.Write(data, offset, count);
+        }
 
         /// <summary>
         /// Возвращает текущую позицию в потоке.
         /// </summary>
         /// <remarks>Переполнения int не ожидается, так как работаем с макс. 2гб файлами.</remarks>
-        public int Position => (int)_bufferedStream.Position;
+        public int Position => (int) _bufferedStream.Position;
 
         /// <summary>
         /// Сохраняет несохраненные данные и освобождает неуправляемые ресурсы.
@@ -66,7 +69,7 @@ namespace Storage.Core.Helpers
         public void Dispose()
         {
             StopTimer();
-            FlushToDisk(force: true);
+            FlushToDisk(true);
             _bufferedStream.Dispose();
             _autoFlushTimer.Dispose();
         }
@@ -103,4 +106,3 @@ namespace Storage.Core.Helpers
         #endregion Методы (private)
     }
 }
-

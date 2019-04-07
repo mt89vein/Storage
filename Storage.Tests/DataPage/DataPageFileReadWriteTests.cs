@@ -1,9 +1,9 @@
-﻿using System;
+﻿using NUnit.Framework;
+using Storage.Core.Configuration;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading;
-using NUnit.Framework;
-using Storage.Core.Configuration;
 
 namespace Storage.Tests.DataPage
 {

@@ -2,30 +2,39 @@
 
 namespace Storage.Core.Configuration
 {
-	public class DataPageConfig
-	{
+    /// <summary>
+    /// Конфигурация страницы данных.
+    /// </summary>
+    public class DataPageConfig
+    {
+        #region Свойства
+
         /// <summary>
         /// Название менеджера страниц, который управляет данной страницей.
         /// </summary>
         public string DataManagerName { get; }
 
-		/// <summary>
-		/// Временной интервал, между автоматическим сохранением на диск.
-		/// </summary>
-		public TimeSpan AutoFlushInterval { get; }
+        /// <summary>
+        /// Временной интервал, между автоматическим сохранением на диск.
+        /// </summary>
+        public TimeSpan AutoFlushInterval { get; }
 
-		/// <summary>
-		/// Размер страницы в байтах.
-		/// </summary>
-		public int PageSize { get; }
+        /// <summary>
+        /// Размер страницы в байтах.
+        /// </summary>
+        public int PageSize { get; }
 
         /// <summary>
         /// Размер буфера для автоматической записи на диск.
         /// <para>
-        ///  default: 30% от размера страницы.
+        /// default: 30% от размера страницы.
         /// </para>
         /// </summary>
         public int BufferSize { get; }
+
+        #endregion Свойства
+
+        #region Конструктор
 
         /// <summary>
         /// Конструктор по-умолчанию.
@@ -35,11 +44,13 @@ namespace Storage.Core.Configuration
         /// <param name="autoFlushInterval">Временной интервал, между автоматическим сохранением на диск. </param>
         /// <param name="bufferSize">Размер буфера для автоматической записи на диск.</param>
         public DataPageConfig(string managerName, int pageSize, TimeSpan autoFlushInterval, int? bufferSize = null)
-		{
+        {
             DataManagerName = managerName;
             PageSize = pageSize;
             BufferSize = bufferSize ?? (int)Math.Round(pageSize * 0.3m, MidpointRounding.AwayFromZero);
-			AutoFlushInterval = autoFlushInterval;
-		}
-	}
+            AutoFlushInterval = autoFlushInterval;
+        }
+
+        #endregion Конструктор
+    }
 }

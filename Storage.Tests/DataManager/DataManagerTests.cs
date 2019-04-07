@@ -1,8 +1,8 @@
-﻿using System.IO;
+﻿using NUnit.Framework;
+using Storage.Core;
+using System.IO;
 using System.Text;
 using System.Threading;
-using NUnit.Framework;
-using Storage.Core;
 
 namespace Storage.Tests.DataManager
 {
@@ -59,6 +59,8 @@ namespace Storage.Tests.DataManager
 
         #endregion Clean/Prepare management
 
+        #region Тесты
+
         [Test]
         [Description("Корректно записывает данные, которые не влезают на одну страницу целиком.")]
         public void MultiPageWriteTest()
@@ -99,5 +101,7 @@ namespace Storage.Tests.DataManager
             Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body.ToByteArray()));
             Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body.ToByteArray()));
         }
+
+        #endregion Тесты
     }
 }

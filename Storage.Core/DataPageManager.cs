@@ -18,7 +18,7 @@ namespace Storage.Core
     /// Менеджер страниц данных.
     /// </summary>
     public sealed class DataPageManager : IDisposable
-	{
+    {
         #region Поля
 
         /// <summary>
@@ -27,7 +27,7 @@ namespace Storage.Core
         private readonly ConcurrentDictionary<int, DataPage> _dataPages;
 
         /// <summary>
-        /// Индекс по <see cref="DataRecord.Id"/>
+        /// Индекс по <see cref="DataRecord.Id" />
         /// </summary>
         private readonly IDataRecordIndexStore _dataRecordIndexStore;
 
@@ -92,7 +92,7 @@ namespace Storage.Core
         #endregion Конструктор
 
         #region Методы (public)
-        
+
         /// <summary>
         /// Сохранить данные на диск.
         /// </summary>
@@ -113,7 +113,12 @@ namespace Storage.Core
                 // записали на диск.
                 currentDataPage.TrySaveData(data, out var dataOffset);
                 // пишем в индекс
-                _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(record.Header.Id, currentDataPage.PageId, dataOffset, dataLength));
+                _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
+                        record.Header.Id,
+                        currentDataPage.PageId,
+                        dataOffset, dataLength
+                    )
+                );
 
                 return;
             }
@@ -126,7 +131,13 @@ namespace Storage.Core
             // заполним оставшееся место в текущей странице 
             if (currentDataPage.TrySaveData(dataSpan.Slice(0, freeSpaceLength).ToArray(), out var offset))
             {
-                dataRecordIndexPointers.Add(new DataRecordIndexPointer(record.Header.Id, currentDataPage.PageId, offset, freeSpaceLength));
+                dataRecordIndexPointers.Add(new DataRecordIndexPointer(
+                        record.Header.Id,
+                        currentDataPage.PageId,
+                        offset,
+                        freeSpaceLength
+                    )
+                );
             }
 
             writtenBytes += freeSpaceLength;
@@ -138,25 +149,31 @@ namespace Storage.Core
                 currentDataPage = CreateNew();
 
                 var bytesToWrite = dataLength - writtenBytes > _config.PageSize
-                     ? _config.PageSize
-                     : dataLength - writtenBytes;
+                    ? _config.PageSize
+                    : dataLength - writtenBytes;
 
                 // создаем разрез для записи.
                 var slice = dataSpan.Slice(writtenBytes, bytesToWrite);
 
                 // сохраняем.
                 currentDataPage.TrySaveData(slice.ToArray(), out offset);
-                dataRecordIndexPointers.Add(new DataRecordIndexPointer(record.Header.Id, currentDataPage.PageId, offset, slice.Length));
+                dataRecordIndexPointers.Add(new DataRecordIndexPointer(
+                        record.Header.Id,
+                        currentDataPage.PageId,
+                        offset,
+                        slice.Length
+                    )
+                );
                 writtenBytes += slice.Length;
             }
 
             var index = dataRecordIndexPointers.First();
             _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
-                index.DataRecordId,
-                index.DataPageNumber,
-                index.Offset,
-                index.Length,
-                dataRecordIndexPointers.Skip(1).ToArray()
+                    index.DataRecordId,
+                    index.DataPageNumber,
+                    index.Offset,
+                    index.Length,
+                    dataRecordIndexPointers.Skip(1).ToArray()
                 )
             );
         }
@@ -228,37 +245,37 @@ namespace Storage.Core
         /// </summary>
         /// <returns>Новая страница.</returns>
         private DataPage CreateNew()
-		{
-			lock (_createDataPageLock)
-			{
-				var dataPageNumber = NextDataPageNumber;
-				var fileName = _dataPageFileNamingStrategy.GetFileNameFor(dataPageNumber);
-				var dataPage = new DataPage(_config.DataPageConfig, dataPageNumber, fileName, false);
+        {
+            lock (_createDataPageLock)
+            {
+                var dataPageNumber = NextDataPageNumber;
+                var fileName = _dataPageFileNamingStrategy.GetFileNameFor(dataPageNumber);
+                var dataPage = new DataPage(_config.DataPageConfig, dataPageNumber, fileName, false);
 
-				AddDataPage(dataPage);
+                AddDataPage(dataPage);
 
-				return dataPage;
-			}
-		}
+                return dataPage;
+            }
+        }
 
-		/// <summary>
-		/// Добавить страницу в словарь.
-		/// </summary>
-		/// <param name="page">Страница данных.</param>
-		private void AddDataPage(DataPage page)
-		{
-			while (!_dataPages.TryAdd(page.PageId, page))
-			{
-				Thread.Sleep(1);
-			}
-		}
+        /// <summary>
+        /// Добавить страницу в словарь.
+        /// </summary>
+        /// <param name="page">Страница данных.</param>
+        private void AddDataPage(DataPage page)
+        {
+            while (!_dataPages.TryAdd(page.PageId, page))
+            {
+                Thread.Sleep(1);
+            }
+        }
 
-		/// <summary>
-		/// Загрузить в память метаданные страниц.
-		/// </summary>
-		private void LoadMetaData()
-		{
-			lock (_createDataPageLock)
+        /// <summary>
+        /// Загрузить в память метаданные страниц.
+        /// </summary>
+        private void LoadMetaData()
+        {
+            lock (_createDataPageLock)
             {
                 var files = _dataPageFileNamingStrategy.GetFiles();
 
@@ -274,16 +291,16 @@ namespace Storage.Core
                 }
             }
 
-			// TODO: сделать проверку на индексы (т.е. индекс должен быть корректно восстановлен, например чтобы последний элемент индекса корректно ссылался на последний элемент страницы, сделать перестройку индекса, если проверка не удалась.
-		}
+            // TODO: сделать проверку на индексы (т.е. индекс должен быть корректно восстановлен, например чтобы последний элемент индекса корректно ссылался на последний элемент страницы, сделать перестройку индекса, если проверка не удалась.
+        }
 
-		/// <summary>
-		/// Получить страницу данных по номеру.
-		/// </summary>
-		/// <param name="pageId">Номер страницы.</param>
-		/// <returns>Страница данных.</returns>
-		private DataPage GetDataPage(int pageId)
-		{
+        /// <summary>
+        /// Получить страницу данных по номеру.
+        /// </summary>
+        /// <param name="pageId">Номер страницы.</param>
+        /// <returns>Страница данных.</returns>
+        private DataPage GetDataPage(int pageId)
+        {
             if (_dataPages.TryGetValue(pageId, out var dataPage))
             {
                 return dataPage;
@@ -292,7 +309,7 @@ namespace Storage.Core
             return TryLoadPage(pageId, out dataPage)
                 ? dataPage
                 : throw new Exception(); // TODO: feels bad man.. такой ситуации в принципе быть не должно.
-		}
+        }
 
         /// <summary>
         /// Попытаться найти указанную страницу и загрузить в память мета информацию о ней.

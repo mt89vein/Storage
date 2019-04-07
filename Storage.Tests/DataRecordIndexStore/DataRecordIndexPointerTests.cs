@@ -1,6 +1,6 @@
-﻿using System;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Storage.Core.Models;
+using System;
 
 namespace Storage.Tests.DataRecordIndexStore
 {

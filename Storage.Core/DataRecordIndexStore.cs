@@ -10,16 +10,16 @@ using System.Linq;
 namespace Storage.Core
 {
     /// <summary>
-    /// Индекс по <see cref="DataRecord.Id"/>
+    /// Индекс по <see cref="DataRecord.Id" />
     /// </summary>
     public class DataRecordIndexStore : IDataRecordIndexStore
-	{
-		#region Поля
+    {
+        #region Поля
 
-		/// <summary>
-		/// BPlusTree дерево.
-		/// </summary>
-		private readonly BTree<long, DataRecordIndexPointer> _tree;
+        /// <summary>
+        /// BPlusTree дерево.
+        /// </summary>
+        private readonly BTree<long, DataRecordIndexPointer> _tree;
 
         /// <summary>
         /// Буферизированый писатель в файл.
@@ -31,63 +31,65 @@ namespace Storage.Core
         /// </summary>
         private const int BufferSize = 8096;
 
-		/// <summary>
-		/// Объект для блокировок на запись в индекс.
-		/// </summary>
-		private readonly object _syncWriteLock = new object();
+        /// <summary>
+        /// Объект для блокировок на запись в индекс.
+        /// </summary>
+        private readonly object _syncWriteLock = new object();
 
-		#endregion Поля
+        #endregion Поля
 
-		#region Конструктор
+        #region Конструктор
 
-		/// <summary>
-		/// Инициализирует хранилище индекса.
-		/// </summary>
-		/// <param name="directory">Путь к файлу индекса.</param>
-		public DataRecordIndexStore(string directory)
-		{
-			_tree = new BTree<long, DataRecordIndexPointer>();
-			var fileName = Path.Combine(directory, "data-record-index-pointers.index");
-            _bufferedFileWriter = new BufferedFileWriter(GetFileStream(fileName), BufferSize, TimeSpan.FromMilliseconds(500));
-			ReconstituteIndexFromFile(fileName);
-		}
+        /// <summary>
+        /// Инициализирует хранилище индекса.
+        /// </summary>
+        /// <param name="directory">Путь к файлу индекса.</param>
+        public DataRecordIndexStore(string directory)
+        {
+            _tree = new BTree<long, DataRecordIndexPointer>();
+            var fileName = Path.Combine(directory, "data-record-index-pointers.index");
+            _bufferedFileWriter =
+                new BufferedFileWriter(GetFileStream(fileName), BufferSize, TimeSpan.FromMilliseconds(500));
+            ReconstituteIndexFromFile(fileName);
+        }
 
-		#endregion Конструктор
+        #endregion Конструктор
 
-		#region Методы (public)
+        #region Методы (public)
 
-		/// <summary>
-		/// Попытаться найти из индекса.
-		/// </summary>
-		/// <param name="recordId">Идентификатор записи.</param>
-		/// <param name="recordIndexPointer">Указатель на данные.</param>
-		/// <returns>True, если удалось найти данные.</returns>
-		public bool TryGetIndex(long recordId, out DataRecordIndexPointer recordIndexPointer)
-		{
-			var node = _tree.Find(recordId);
-			recordIndexPointer = node.IsValid
-				? node.Value
-				: default;
+        /// <summary>
+        /// Попытаться найти из индекса.
+        /// </summary>
+        /// <param name="recordId">Идентификатор записи.</param>
+        /// <param name="recordIndexPointer">Указатель на данные.</param>
+        /// <returns>True, если удалось найти данные.</returns>
+        public bool TryGetIndex(long recordId, out DataRecordIndexPointer recordIndexPointer)
+        {
+            var node = _tree.Find(recordId);
+            recordIndexPointer = node.IsValid
+                ? node.Value
+                : default;
 
-			return node.IsValid;
-		}
+            return node.IsValid;
+        }
 
-		/// <summary>
-		/// Добавить указатель в индекс.
-		/// </summary>
-		/// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>
-		public void AddToIndex(DataRecordIndexPointer recordIndexPointer)
-		{
-			lock (_syncWriteLock)
+        /// <summary>
+        /// Добавить указатель в индекс.
+        /// </summary>
+        /// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>
+        public void AddToIndex(DataRecordIndexPointer recordIndexPointer)
+        {
+            lock (_syncWriteLock)
             {
                 // добавляем в индекс.
                 _tree.Add(recordIndexPointer.DataRecordId, recordIndexPointer);
 
                 // формируем общий список указателей.
-                var pointers = new List<DataRecordIndexPointer>(recordIndexPointer.AdditionalDataRecordIndexPointers.Length + 1)
-                {
-                    recordIndexPointer
-                };
+                var pointers =
+                    new List<DataRecordIndexPointer>(recordIndexPointer.AdditionalDataRecordIndexPointers.Length + 1)
+                    {
+                        recordIndexPointer
+                    };
                 pointers.AddRange(recordIndexPointer.AdditionalDataRecordIndexPointers);
 
                 // сортируем по номерам страниц и последовательно пишем в файл.
@@ -95,8 +97,8 @@ namespace Storage.Core
                 {
                     _bufferedFileWriter.Write(pointer.GetBytes(), 0, DataRecordIndexPointer.Size);
                 }
-			}
-		}
+            }
+        }
 
         /// <summary>
         /// Высвобождаем выделенные неуправляемые ресурсы.
@@ -166,6 +168,7 @@ namespace Storage.Core
                         {
                             return;
                         }
+
                         // прочитали первый указатель.
                         var currentDataRecordIndexPointer = new DataRecordIndexPointer(bytes);
 
@@ -182,8 +185,8 @@ namespace Storage.Core
                         {
                             // прочитали следующий указатель.
                             var data = reader.ReadBytes(DataRecordIndexPointer.Size);
-                            var dataRecordIndexPointer = data.Length == DataRecordIndexPointer.Size 
-                                ? new DataRecordIndexPointer(data) 
+                            var dataRecordIndexPointer = data.Length == DataRecordIndexPointer.Size
+                                ? new DataRecordIndexPointer(data)
                                 : new DataRecordIndexPointer();
 
                             // если он оказался таким же, какой и ранее, добавляем в список текущих.
@@ -224,7 +227,7 @@ namespace Storage.Core
                 }
             }
         }
-        
+
         #endregion Методы (private)
     }
 }

@@ -1,6 +1,6 @@
-﻿using System;
+﻿using Storage.Core.Configuration;
+using System;
 using System.IO;
-using Storage.Core.Configuration;
 
 namespace Storage.Core
 {
@@ -9,6 +9,8 @@ namespace Storage.Core
     /// </summary>
     public class DataPageManagerConfig
     {
+        #region Свойства
+
         /// <summary>
         /// Название менеджера страниц.
         /// </summary>
@@ -38,7 +40,12 @@ namespace Storage.Core
         /// Ленивая инициализация конфигурация страницы.
         /// </summary>
         /// <returns>Инициализатор конфигурации страницы.</returns>
-        private Lazy<DataPageConfig> DataPageConfigLazy => new Lazy<DataPageConfig>(() => new DataPageConfig(Name, PageSize, AutoFlushInterval));
+        private Lazy<DataPageConfig> DataPageConfigLazy =>
+            new Lazy<DataPageConfig>(() => new DataPageConfig(Name, PageSize, AutoFlushInterval));
+
+        #endregion Свойства
+
+        #region Конструктор
 
         /// <summary>
         /// Конструктор по-умолчанию.
@@ -54,5 +61,7 @@ namespace Storage.Core
             Directory = Path.Combine(directory, Name);
             AutoFlushInterval = autoFlushInterval ?? TimeSpan.FromMilliseconds(500);
         }
+
+        #endregion Конструктор
     }
 }

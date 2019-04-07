@@ -4,10 +4,10 @@ using System.IO;
 namespace Storage.Core.Models
 {
     /// <summary>
-    /// Модель-контейнер данных для хранения в <see cref="DataPage"/>.
+    /// Модель-контейнер данных для хранения в <see cref="DataPage" />.
     /// </summary>
     public sealed partial class DataRecord
-	{
+    {
         #region Конструкторы
 
         /// <summary>
@@ -17,7 +17,7 @@ namespace Storage.Core.Models
         /// <param name="body">Данные для хранения.</param>
         public DataRecord(long recordId, byte[] body)
         {
-			Body = ByteString.CopyFrom(body);
+            Body = ByteString.CopyFrom(body);
             Header = new DataRecordHeader
             {
                 Id = recordId,
@@ -27,14 +27,14 @@ namespace Storage.Core.Models
             Header.Length = CalculateSize();
         }
 
-		/// <summary>
-		/// Создает новый инстанс из указанного массива байт.
-		/// </summary>
-		/// <param name="bytes"></param>
-		public DataRecord(byte[] bytes)
-		{
-			ReadFrom(bytes);
-		}
+        /// <summary>
+        /// Создает новый инстанс из указанного массива байт.
+        /// </summary>
+        /// <param name="bytes"></param>
+        public DataRecord(byte[] bytes)
+        {
+            ReadFrom(bytes);
+        }
 
         #endregion Конструкторы
 
@@ -53,7 +53,10 @@ namespace Storage.Core.Models
         /// <summary>
         /// Получить в виде массива байт.
         /// </summary>
-        public byte[] GetBytes() => this.ToByteArray();
+        public byte[] GetBytes()
+        {
+            return this.ToByteArray();
+        }
 
         #endregion Методы (public)
 
