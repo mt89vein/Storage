@@ -1,8 +1,10 @@
 ﻿using NUnit.Framework;
 using Storage.Core;
+using Storage.Core.Configuration;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace Storage.Tests.DataManager
 {
@@ -63,7 +65,7 @@ namespace Storage.Tests.DataManager
 
         [Test]
         [Description("Корректно записывает данные, которые не влезают на одну страницу целиком.")]
-        public void MultiPageWriteTest()
+        public async Task MultiPageWriteTest()
         {
             Assert.AreEqual(0, _dataPageManager.DataPagesCount);
             Assert.IsNull(_dataPageManager.Read(1));
@@ -74,15 +76,16 @@ namespace Storage.Tests.DataManager
             _dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(new string('1', 100))));
             _dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data)));
 
-            Thread.Sleep(1000); // даём время на срабатывание автоматической записи в файл.
+            await Task.Delay(500); // даём время на автосохранение.
+
             var dataRecord = _dataPageManager.Read(2);
 
-            Assert.AreEqual(data, Encoding.UTF8.GetString(dataRecord.Body.ToByteArray()));
+            Assert.AreEqual(data, Encoding.UTF8.GetString(dataRecord.Body));
         }
 
         [Test]
         [Description("Корректно записывает данные, которые влезают на одну страницу целиком.")]
-        public void SinglePageWriteTest()
+        public async Task SinglePageWriteTest()
         {
             Assert.AreEqual(0, _dataPageManager.DataPagesCount);
             Assert.IsNull(_dataPageManager.Read(1));
@@ -94,12 +97,13 @@ namespace Storage.Tests.DataManager
             _dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(data1)));
             _dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data2)));
 
-            Thread.Sleep(1000); // даём время на срабатывание автоматической записи в файл.
+            await Task.Delay(500); // даём время на автосохранение.
+
             var dataRecord1 = _dataPageManager.Read(1);
             var dataRecord2 = _dataPageManager.Read(2);
 
-            Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body.ToByteArray()));
-            Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body.ToByteArray()));
+            Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body));
+            Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body));
         }
 
         #endregion Тесты

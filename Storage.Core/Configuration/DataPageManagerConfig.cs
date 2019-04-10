@@ -1,8 +1,7 @@
-﻿using Storage.Core.Configuration;
-using System;
+﻿using System;
 using System.IO;
 
-namespace Storage.Core
+namespace Storage.Core.Configuration
 {
     /// <summary>
     /// Настройки менеджера страниц.

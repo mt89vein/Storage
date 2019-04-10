@@ -1,6 +1,7 @@
-﻿using Google.Protobuf;
-using NUnit.Framework;
+﻿using System;
 using System.IO;
+using System.Text;
+using NUnit.Framework;
 
 namespace Storage.Tests.DataRecord
 {
@@ -13,12 +14,13 @@ namespace Storage.Tests.DataRecord
         [Description("Корректное восстановление из пустого экзепляра.")]
         public void EmptyBytesReconstituteRecord()
         {
-            var left = new Core.Models.DataRecord();
+            var left = new Core.Models.DataRecord(0, new byte[0]);
             var right = new Core.Models.DataRecord(left.GetBytes());
 
             Assert.Multiple(() =>
             {
-                Assert.AreEqual(left, right, "Equality");
+                Assert.IsTrue(left == right, "Equality left.right");
+                Assert.IsTrue(right == left, "Equality right.left");
                 Assert.IsTrue(left.Equals(right), "left.Equals(right)");
                 Assert.IsTrue(right.Equals(left), "right.Equals(left)");
                 Assert.IsTrue(left.Equals((object)right), "left.Equals((object)right)");
@@ -37,24 +39,6 @@ namespace Storage.Tests.DataRecord
             var right = new Core.Models.DataRecord(1, new byte[99]);
 
             Assert.AreNotEqual(left, right);
-        }
-
-        [Test]
-        [Description("Проверка на корректность Equals заголовков записи.")]
-        public void CorrectHeaderEquals()
-        {
-            var left = new Core.Models.DataRecordHeader
-            {
-                Id = 100500,
-                Length = 125
-            };
-
-            using (var memoryStream = new MemoryStream(left.ToByteArray()))
-            {
-                var right = Core.Models.DataRecord.ReadHeader(memoryStream);
-
-                Assert.AreEqual(left, right);
-            }
         }
 
         #endregion Тесты

@@ -239,28 +239,6 @@ namespace Storage.Core.Models
             // TODO: делаем пометку, что страница завершена. (например делаем файл readonly, уничтожаем fileWriter.. так как он больше не нужен и т.д)
         }
 
-        /// <summary>
-        /// Прочитать всю страницу (заголовки записей)
-        /// </summary>
-        private void SequenceScan()
-        {
-            // TODO: Можно использовать для поиска без индекса (по id) или перестроить индекс.
-            //using (var fileStream = new FileStream(_fileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, _config.BufferSize, FileOptions.SequentialScan))
-            //{
-            //    // Переходим в начало потока.
-            //    fileStream.Seek(0, SeekOrigin.Begin);
-
-            //    // читаем заголовки, пока поток не кончится.
-            //    while (fileStream.Position != fileStream.Length)
-            //    {
-            //        var header = DataRecord.ReadHeader(fileStream);
-            //        // тут можно чекнуть индекс.
-            //        fileStream.Seek(header.Length, SeekOrigin.Current);
-            //    }
-            //    _dataFreeOffset = (int)fileStream.Length;
-            //}
-        }
-
         #endregion Методы (private)
     }
 }

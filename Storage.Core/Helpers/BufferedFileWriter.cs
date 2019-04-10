@@ -26,6 +26,12 @@ namespace Storage.Core.Helpers
         /// </summary>
         public int LastFlushedOffset { get; private set; }
 
+        /// <summary>
+        /// Возвращает текущую позицию в потоке.
+        /// </summary>
+        /// <remarks>Переполнения int не ожидается, так как работаем с макс. 2гб файлами.</remarks>
+        public int Position { get; private set; }
+
         #endregion Поля, свойства
 
         #region Конструктор
@@ -55,13 +61,10 @@ namespace Storage.Core.Helpers
         public void Write(byte[] data, int offset, int count)
         {
             _bufferedStream.Write(data, offset, count);
+            Position = (int)_bufferedStream.Position;
         }
 
-        /// <summary>
-        /// Возвращает текущую позицию в потоке.
-        /// </summary>
-        /// <remarks>Переполнения int не ожидается, так как работаем с макс. 2гб файлами.</remarks>
-        public int Position => (int) _bufferedStream.Position;
+
 
         /// <summary>
         /// Сохраняет несохраненные данные и освобождает неуправляемые ресурсы.
@@ -89,9 +92,10 @@ namespace Storage.Core.Helpers
         /// <summary>
         /// Записать на диск, если есть изменения.
         /// </summary>
+        /// <param name="force">Записать, без проверок.</param>
         private void FlushToDisk(bool force = false)
         {
-            if (!force && LastFlushedOffset == _bufferedStream?.Position)
+            if (!force && LastFlushedOffset == Position)
             {
                 return;
             }

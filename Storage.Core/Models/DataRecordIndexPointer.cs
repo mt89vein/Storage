@@ -98,6 +98,7 @@ namespace Storage.Core.Models
             DataPageNumber = BitConverter.ToInt32(bytes, 8);
             Offset = BitConverter.ToInt32(bytes, 12);
             Length = BitConverter.ToInt32(bytes, 16);
+            AdditionalDataRecordIndexPointers = new DataRecordIndexPointer[0];
         }
 
         #endregion Конструкторы
@@ -110,7 +111,7 @@ namespace Storage.Core.Models
         /// <returns>Массив байт.</returns>
         public byte[] GetBytes()
         {
-            return ByteArrayExtensions.Flatten(
+            return ByteUtils.Flatten(
                 BitConverter.GetBytes(DataRecordId),
                 BitConverter.GetBytes(DataPageNumber),
                 BitConverter.GetBytes(Offset),

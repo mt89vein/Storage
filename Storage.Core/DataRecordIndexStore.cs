@@ -10,7 +10,7 @@ using System.Linq;
 namespace Storage.Core
 {
     /// <summary>
-    /// Индекс по <see cref="DataRecord.Id" />
+    /// Индекс по <see cref="DataRecord" />
     /// </summary>
     public class DataRecordIndexStore : IDataRecordIndexStore
     {
@@ -39,7 +39,7 @@ namespace Storage.Core
         #endregion Поля
 
         #region Конструктор
-
+        // TODO: IndexStoreConfig { FlushTime, BufferSize }
         /// <summary>
         /// Инициализирует хранилище индекса.
         /// </summary>
@@ -79,18 +79,18 @@ namespace Storage.Core
         /// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>
         public void AddToIndex(DataRecordIndexPointer recordIndexPointer)
         {
+            // формируем общий список указателей.
+            var pointers =
+                new List<DataRecordIndexPointer>(recordIndexPointer.AdditionalDataRecordIndexPointers.Length + 1)
+                {
+                    recordIndexPointer
+                };
+            pointers.AddRange(recordIndexPointer.AdditionalDataRecordIndexPointers);
+
             lock (_syncWriteLock)
             {
                 // добавляем в индекс.
                 _tree.Add(recordIndexPointer.DataRecordId, recordIndexPointer);
-
-                // формируем общий список указателей.
-                var pointers =
-                    new List<DataRecordIndexPointer>(recordIndexPointer.AdditionalDataRecordIndexPointers.Length + 1)
-                    {
-                        recordIndexPointer
-                    };
-                pointers.AddRange(recordIndexPointer.AdditionalDataRecordIndexPointers);
 
                 // сортируем по номерам страниц и последовательно пишем в файл.
                 foreach (var pointer in pointers.OrderBy(p => p.DataPageNumber))

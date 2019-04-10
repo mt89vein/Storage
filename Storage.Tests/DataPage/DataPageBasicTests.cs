@@ -80,7 +80,7 @@ namespace Storage.Tests.DataPage
             var activeTimeAfterReadBytes = _dataPage.LastActiveTime;
             Assert.AreNotEqual(activeTimeAfterRead, activeTimeAfterReadBytes);
 
-            _dataPage.TrySaveData(new byte[10], out var offset);
+            _dataPage.TrySaveData(new byte[10], out _);
 
             var activeTimeAfterSaveData = _dataPage.LastActiveTime;
 
@@ -100,7 +100,7 @@ namespace Storage.Tests.DataPage
 
             foreach (var bytesToWrite in bytesToWriteArray)
             {
-                _dataPage.TrySaveData(new byte[bytesToWrite], out var offset);
+                _dataPage.TrySaveData(new byte[bytesToWrite], out _);
                 Assert.AreEqual(initialFreeSpace - bytesToWrite, _dataPage.GetFreeSpaceLength());
                 initialFreeSpace -= bytesToWrite;
             }

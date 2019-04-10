@@ -1,13 +1,19 @@
-﻿using Google.Protobuf;
-using System.IO;
+﻿using Storage.Core.Helpers;
+using System;
 
 namespace Storage.Core.Models
 {
     /// <summary>
     /// Модель-контейнер данных для хранения в <see cref="DataPage" />.
     /// </summary>
-    public sealed partial class DataRecord
+    public sealed class DataRecord : IEquatable<DataRecord>
     {
+        public long Id { get; }
+
+        public int Length { get; }
+
+        public byte[] Body { get; }
+
         #region Конструкторы
 
         /// <summary>
@@ -17,14 +23,9 @@ namespace Storage.Core.Models
         /// <param name="body">Данные для хранения.</param>
         public DataRecord(long recordId, byte[] body)
         {
-            Body = ByteString.CopyFrom(body);
-            Header = new DataRecordHeader
-            {
-                Id = recordId,
-                Length = Body.Length
-            };
-
-            Header.Length = CalculateSize();
+            Body = body;
+            Id = recordId;
+            Length = body.Length + sizeof(long) + sizeof(int);
         }
 
         /// <summary>
@@ -33,7 +34,10 @@ namespace Storage.Core.Models
         /// <param name="bytes"></param>
         public DataRecord(byte[] bytes)
         {
-            ReadFrom(bytes);
+            var span = bytes.AsSpan();
+            Length = span.DecodeInt(0, out var nextStartOffset);
+            Id = span.DecodeLong(nextStartOffset, out nextStartOffset);
+            Body = span.Slice(nextStartOffset, span.Length - nextStartOffset).ToArray();
         }
 
         #endregion Конструкторы
@@ -41,37 +45,76 @@ namespace Storage.Core.Models
         #region Методы (public)
 
         /// <summary>
-        /// Прочитать заголовок из потока.
-        /// </summary>
-        /// <param name="stream">Поток.</param>
-        /// <returns>Заголовок записи.</returns>
-        public static DataRecordHeader ReadHeader(Stream stream)
-        {
-            return DataRecordHeader.Parser.ParseFrom(stream);
-        }
-
-        /// <summary>
         /// Получить в виде массива байт.
         /// </summary>
         public byte[] GetBytes()
         {
-            return this.ToByteArray();
+            return ByteUtils.Flatten(
+                BitConverter.GetBytes(Length),
+                BitConverter.GetBytes(Id),
+                Body
+            );
         }
 
         #endregion Методы (public)
 
-        #region Методы (private)
+        #region Equality
 
-        /// <summary>
-        /// Прочитать из массива байт.
-        /// </summary>
-        /// <param name="bytes">Массив байт.</param>
-        private void ReadFrom(byte[] bytes)
+        /// <summary>Indicates whether the current object is equal to another object of the same type.</summary>
+        /// <param name="other">An object to compare with this object.</param>
+        /// <returns>true if the current object is equal to the <paramref name="other">other</paramref> parameter; otherwise, false.</returns>
+        public bool Equals(DataRecord other)
         {
-            var dataRecord = Parser.ParseFrom(bytes);
-            MergeFrom(dataRecord);
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Id == other.Id && Length == other.Length;
         }
 
-        #endregion Методы (private)
+        /// <summary>Determines whether the specified object is equal to the current object.</summary>
+        /// <param name="obj">The object to compare with the current object.</param>
+        /// <returns>true if the specified object  is equal to the current object; otherwise, false.</returns>
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            return obj is DataRecord other && Equals(other);
+        }
+
+        /// <summary>Serves as the default hash function.</summary>
+        /// <returns>A hash code for the current object.</returns>
+        public override int GetHashCode()
+        {
+            const int offset = 400;
+            const int multiplier = 552;
+
+            unchecked
+            {
+                var hashCode = offset;
+                hashCode = (hashCode * multiplier) ^ Id.GetHashCode();
+                hashCode = (hashCode * multiplier) ^ Length;
+
+                return hashCode;
+            }
+        }
+
+        /// <summary>Returns a value that indicates whether the values of two <see cref="T:Storage.Core.Models.DataRecord" /> objects are equal.</summary>
+        /// <param name="left">The first value to compare.</param>
+        /// <param name="right">The second value to compare.</param>
+        /// <returns>true if the <paramref name="left" /> and <paramref name="right" /> parameters have the same value; otherwise, false.</returns>
+        public static bool operator ==(DataRecord left, DataRecord right)
+        {
+            return Equals(left, right);
+        }
+
+        /// <summary>Returns a value that indicates whether two <see cref="T:Storage.Core.Models.DataRecord" /> objects have different values.</summary>
+        /// <param name="left">The first value to compare.</param>
+        /// <param name="right">The second value to compare.</param>
+        /// <returns>true if <paramref name="left" /> and <paramref name="right" /> are not equal; otherwise, false.</returns>
+        public static bool operator !=(DataRecord left, DataRecord right)
+        {
+            return !Equals(left, right);
+        }
+
+        #endregion Equality
     }
 }

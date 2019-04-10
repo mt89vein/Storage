@@ -4,7 +4,7 @@ using Storage.Core.Models;
 namespace Storage.Core.Abstractions
 {
     /// <summary>
-    /// Индекс по <see cref="DataRecord.Id" />
+    /// Индекс по <see cref="DataRecord" />
     /// </summary>
     public interface IDataRecordIndexStore : IDisposable
     {

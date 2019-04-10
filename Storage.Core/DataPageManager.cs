@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Storage.Core.Configuration;
 
 namespace Storage.Core
 {
@@ -114,7 +115,7 @@ namespace Storage.Core
                 currentDataPage.TrySaveData(data, out var dataOffset);
                 // пишем в индекс
                 _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
-                        record.Header.Id,
+                        record.Id,
                         currentDataPage.PageId,
                         dataOffset, dataLength
                     )
@@ -132,7 +133,7 @@ namespace Storage.Core
             if (currentDataPage.TrySaveData(dataSpan.Slice(0, freeSpaceLength).ToArray(), out var offset))
             {
                 dataRecordIndexPointers.Add(new DataRecordIndexPointer(
-                        record.Header.Id,
+                        record.Id,
                         currentDataPage.PageId,
                         offset,
                         freeSpaceLength
@@ -158,7 +159,7 @@ namespace Storage.Core
                 // сохраняем.
                 currentDataPage.TrySaveData(slice.ToArray(), out offset);
                 dataRecordIndexPointers.Add(new DataRecordIndexPointer(
-                        record.Header.Id,
+                        record.Id,
                         currentDataPage.PageId,
                         offset,
                         slice.Length
@@ -315,11 +316,11 @@ namespace Storage.Core
         /// Попытаться найти указанную страницу и загрузить в память мета информацию о ней.
         /// </summary>
         /// <param name="pageId">Номер страницы.</param>
-        /// <param name="dataPage">Страница данных.</param>
+        /// <param name="page">Страница данных.</param>
         /// <returns>True, если удалось найти файл и загрузить мета информацию.</returns>
-        private bool TryLoadPage(int pageId, out DataPage dataPage)
+        private bool TryLoadPage(int pageId, out DataPage page)
         {
-            dataPage = default;
+            page = default;
 
             var fileName = _dataPageFileNamingStrategy.GetFileNameFor(pageId);
             if (!File.Exists(fileName))
@@ -328,9 +329,9 @@ namespace Storage.Core
             }
 
             // считаем что страница завершена, так как не завершенная всегда одна и её грузим в память при инициализации менеджера.
-            dataPage = new DataPage(_config.DataPageConfig, pageId, fileName, true);
+            page = new DataPage(_config.DataPageConfig, pageId, fileName, true);
 
-            AddDataPage(dataPage);
+            AddDataPage(page);
 
             return true;
         }
