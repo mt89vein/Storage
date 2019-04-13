@@ -1,7 +1,5 @@
-﻿using System;
-using System.IO;
-using System.Text;
-using NUnit.Framework;
+﻿using NUnit.Framework;
+using System;
 
 namespace Storage.Tests.DataRecord
 {
@@ -11,8 +9,8 @@ namespace Storage.Tests.DataRecord
         #region Тесты
 
         [Test]
-        [Description("Корректное восстановление из пустого экзепляра.")]
-        public void EmptyBytesReconstituteRecord()
+        [Description("Корректное восстановление из пустого экземпляра.")]
+        public void EmptyDataRecordReconstituteValid()
         {
             var left = new Core.Models.DataRecord(0, new byte[0]);
             var right = new Core.Models.DataRecord(left.GetBytes());
@@ -29,6 +27,13 @@ namespace Storage.Tests.DataRecord
                 Assert.AreEqual(left.GetHashCode(), right.GetHashCode(), "HashCodes");
                 Assert.IsFalse(right.Equals(null), "right.Equals(null)");
             });
+        }
+
+        [Test]
+        [Description("IO exception при пустом массиве байт.")]
+        public void EmptyBytesThrowsIoException()
+        {
+            Assert.Throws<InvalidOperationException>(() => new Core.Models.DataRecord(new byte[0]));
         }
 
         [Test]

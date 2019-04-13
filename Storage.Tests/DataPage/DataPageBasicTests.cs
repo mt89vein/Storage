@@ -2,6 +2,7 @@
 using Storage.Core.Configuration;
 using System;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace Storage.Tests.DataPage
 {
@@ -68,23 +69,22 @@ namespace Storage.Tests.DataPage
 
         [Test]
         [Description("Обновляется время последней активности при действиях.")]
-        public void CorrectlyUpdatesActiveTime()
+        public async Task CorrectlyUpdatesActiveTime()
         {
             var initialActiveTime = _dataPage.LastActiveTime;
 
-            _dataPage.Read(0, 0);
-            var activeTimeAfterRead = _dataPage.LastActiveTime;
-            Assert.AreNotEqual(initialActiveTime, activeTimeAfterRead);
+            _dataPage.TrySaveData(new byte[12], out var offset);
+            var activeTimeAfterSaveData = _dataPage.LastActiveTime;
+            Assert.AreNotEqual(initialActiveTime, activeTimeAfterSaveData);
+            await Task.Delay(500); // дожидаемся сохранения.
 
-            _dataPage.ReadBytes(0, 0);
+            _dataPage.Read(offset, 12);
+            var activeTimeAfterRead = _dataPage.LastActiveTime;
+            Assert.AreNotEqual(activeTimeAfterSaveData, activeTimeAfterRead);
+
+            _dataPage.ReadBytes(offset, 12);
             var activeTimeAfterReadBytes = _dataPage.LastActiveTime;
             Assert.AreNotEqual(activeTimeAfterRead, activeTimeAfterReadBytes);
-
-            _dataPage.TrySaveData(new byte[10], out _);
-
-            var activeTimeAfterSaveData = _dataPage.LastActiveTime;
-
-            Assert.AreNotEqual(activeTimeAfterReadBytes, activeTimeAfterSaveData);
         }
 
         [Test]

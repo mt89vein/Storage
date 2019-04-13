@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Storage.Core.Abstractions;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Storage.Core.Abstractions;
 
 namespace Storage.Core.FileNamingStrategies
 {

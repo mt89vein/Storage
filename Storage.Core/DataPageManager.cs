@@ -1,4 +1,5 @@
 ﻿using Storage.Core.Abstractions;
+using Storage.Core.Configuration;
 using Storage.Core.FileNamingStrategies;
 using Storage.Core.Models;
 using System;
@@ -7,7 +8,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using Storage.Core.Configuration;
 
 namespace Storage.Core
 {
@@ -291,8 +291,6 @@ namespace Storage.Core
                     AddDataPage(new DataPage(_config.DataPageConfig, lastDataPage.Key, lastDataPage.Value, false));
                 }
             }
-
-            // TODO: сделать проверку на индексы (т.е. индекс должен быть корректно восстановлен, например чтобы последний элемент индекса корректно ссылался на последний элемент страницы, сделать перестройку индекса, если проверка не удалась.
         }
 
         /// <summary>
