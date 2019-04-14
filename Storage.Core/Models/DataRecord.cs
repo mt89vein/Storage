@@ -13,7 +13,7 @@ namespace Storage.Core.Models
         /// <summary>
         /// Размер метаданных в байтах.
         /// </summary>
-        private const int MetaInfoSize = sizeof(long) + sizeof(int);
+        public const int MetaInfoSize = sizeof(long) + sizeof(int);
 
         /// <summary>
         /// Идентификатор записи в хранилище.

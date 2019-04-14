@@ -64,6 +64,11 @@ namespace Storage
                 {
                     var animal = Dog.ReadFrom(dataRecord3.Body);
                 }
+
+                foreach (var record in dataPageManager.AsEnumerable(2))
+                {
+                    var animal = Dog.ReadFrom(record.Body);
+                }
             }
 
             Console.ReadLine();

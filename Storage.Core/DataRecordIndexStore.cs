@@ -74,6 +74,16 @@ namespace Storage.Core
         }
 
         /// <summary>
+        /// Получить индекс для итерирования с указанного идентификатора записи.
+        /// </summary>
+        /// <param name="fromRecordId">Идентификатор записи, от которого нужен итератор.</param>
+        /// <returns>Итератор.</returns>
+        public IEnumerable<DataRecordIndexPointer> AsEnumerable(long fromRecordId = 0)
+        {
+            return _tree.From(fromRecordId).AsEnumerable().Select(t => t.Value);
+        }
+
+        /// <summary>
         /// Добавить указатель в индекс.
         /// </summary>
         /// <param name="recordIndexPointer">Указатель для добавления в индекс.</param>

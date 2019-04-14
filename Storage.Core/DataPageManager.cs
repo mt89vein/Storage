@@ -15,6 +15,7 @@ namespace Storage.Core
 	 * Зона ответственности: управление списком DataPage, обновление индекса при вставке, управление созданием новых страничек, метод для очистки старых.
 	 * Загрузка из диска индексов и имеющихся страниц данных (карта)
 	 */
+    // TODO: DataPageManager должен сам менеджить RecordId и инкрементить, а сверху прилетать только массивы байт.
     /// <summary>
     /// Менеджер страниц данных.
     /// </summary>
@@ -193,36 +194,22 @@ namespace Storage.Core
                 // DataPageHeader.DataRecordStartId добавить в заголовок и поиск упрощается в разы:
                 // _dataPages.FirstOrDefault(dp => dp.PageId.DataRecordStartId >= dataRecordId) и сканить уже по найденной странице. Если не удалось и так найти.. то тут косяк, надо бежать по всем страницам...)
 
-                // Учесть тот факт, что в файл данные могут писаться не по порядку.
                 return null;
             }
 
-            var dataPage = GetDataPage(index.DataPageNumber);
+            return new DataRecord(GetDataRecordBytes(index));
+        }
 
-            if (!index.AdditionalDataRecordIndexPointers.Any())
-            {
-                return dataPage.Read(index.Offset, index.Length);
-            }
-
-            using (var memoryStream = new MemoryStream())
-            {
-                var bytes = dataPage.ReadBytes(index.Offset, index.Length);
-                memoryStream.Write(bytes, 0, bytes.Length);
-
-                // пробегаемся по всем указателям, собираем тело записи.
-                foreach (var pointer in index.AdditionalDataRecordIndexPointers.OrderBy(p => p.DataPageNumber))
-                {
-                    // получаем страницу.
-                    var dp = GetDataPage(pointer.DataPageNumber);
-                    // читаем данные.
-                    var recordPiece = dp.ReadBytes(pointer.Offset, pointer.Length);
-                    // пишем в memoryStream для аггрегации.
-                    memoryStream.Write(recordPiece, 0, recordPiece.Length);
-                }
-
-                // возвращаем агреггированную запись.
-                return new DataRecord(memoryStream.ToArray());
-            }
+        // TODO: тесты.
+        /// <summary>
+        /// Получить <see cref="IEnumerable{DataRecord}"/> с указанного номера записи.
+        /// </summary>
+        /// <param name="fromRecordId">Идентификатор записи, с которого нужно получить итератор.</param>
+        /// <returns><see cref="IEnumerable{TDataRecord}"/> с указанного номера записи.</returns>
+        public IEnumerable<DataRecord> AsEnumerable(long fromRecordId)
+        {
+            return _dataRecordIndexStore.AsEnumerable(fromRecordId)
+                .Select(recordIndexPointer => new DataRecord(GetDataRecordBytes(recordIndexPointer)));
         }
 
         /// <summary>
@@ -240,6 +227,40 @@ namespace Storage.Core
         #endregion Методы (public)
 
         #region Методы (private)
+
+        /// <summary>
+        /// Прочитать (собрать) массив байт записи по индексу.
+        /// </summary>
+        /// <param name="recordIndexPointer">Указатель на данные на странице.</param>
+        /// <returns>Массив байт записи.</returns>
+        private byte[] GetDataRecordBytes(in DataRecordIndexPointer recordIndexPointer)
+        {
+            var dataPage = GetDataPage(recordIndexPointer.DataPageNumber);
+            if (!recordIndexPointer.AdditionalDataRecordIndexPointers.Any())
+            {
+                return dataPage.ReadBytes(recordIndexPointer.Offset, recordIndexPointer.Length);
+            }
+
+            using (var memoryStream = new MemoryStream())
+            {
+                var bytes = dataPage.ReadBytes(recordIndexPointer.Offset, recordIndexPointer.Length);
+                memoryStream.Write(bytes, 0, bytes.Length);
+
+                // пробегаемся по всем указателям, собираем тело записи.
+                foreach (var pointer in recordIndexPointer.AdditionalDataRecordIndexPointers.OrderBy(p => p.DataPageNumber))
+                {
+                    // получаем страницу.
+                    var dp = GetDataPage(pointer.DataPageNumber);
+                    // читаем данные.
+                    var recordPiece = dp.ReadBytes(pointer.Offset, pointer.Length);
+                    // пишем в memoryStream для аггрегации.
+                    memoryStream.Write(recordPiece, 0, recordPiece.Length);
+                }
+
+                // возвращаем агреггированный массив байт.
+                return memoryStream.ToArray();
+            }
+        }
 
         /// <summary>
         /// Создать новую страницу.
