@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Storage.Core.Models;
 
 namespace Storage.Tests.DataPage
 {
@@ -53,8 +54,8 @@ namespace Storage.Tests.DataPage
             int freeSpaceLength;
             using (var dataPage = new Core.Models.DataPage(_config, 1, fileInfo.FullName, false))
             {
-                currentOffset = _config.PageSize - dataPage.GetFreeSpaceLength();
-                dataPage.TrySaveData(bytes, out offset);
+                currentOffset = _config.PageSize - bytes.Length;
+                dataPage.TrySaveData(dataRecord.Id, bytes, out offset);
                 await Task.Delay(650); // даём время на автосохранение.
                 dataRecordReaded = dataPage.Read(offset, bytes.Length);
                 freeSpaceLength = dataPage.GetFreeSpaceLength();
@@ -63,7 +64,7 @@ namespace Storage.Tests.DataPage
             Assert.Multiple(() =>
             {
                 Assert.AreEqual(currentOffset, offset, "Оффсет должен быть корректным.");
-                Assert.AreEqual(_config.PageSize - bytes.Length, freeSpaceLength, "Количество свободного места должно уменьшиться на кол-во записанных байт.");
+                Assert.AreEqual(_config.PageSize - bytes.Length - DataPageLocalIndex.Size - DataPageHeader.Size, freeSpaceLength, "Количество свободного места должно уменьшиться на кол-во записанных байт.");
                 Assert.AreEqual(stringToWrite, Encoding.UTF8.GetString(dataRecordReaded.Body), "Записанные данные должны корректно восстановиться.");
                 Assert.AreEqual(File.ReadAllBytes(Path.Combine(path, "expected-datapage-1")), File.ReadAllBytes(fileInfo.FullName), "Контент должен совпасть.");
             });
@@ -80,7 +81,7 @@ namespace Storage.Tests.DataPage
             {
                 const string stringToWrite = "Hello world!";
 
-                var dataRecord = dataPage.Read(0, 24);
+                var dataRecord = dataPage.Read(_config.PageSize - 24, 24);
 
                 Assert.AreEqual(stringToWrite, Encoding.UTF8.GetString(dataRecord.Body), "Записанные данные должны корректно восстановиться.");
             }

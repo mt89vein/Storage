@@ -21,17 +21,6 @@ namespace Storage.Core.Helpers
         /// </summary>
         private readonly BufferedStream _bufferedStream;
 
-        /// <summary>
-        /// Позиция, которая последний раз была записана на диск.
-        /// </summary>
-        public int LastFlushedOffset { get; private set; }
-
-        /// <summary>
-        /// Возвращает текущую позицию в потоке.
-        /// </summary>
-        /// <remarks>Переполнения int не ожидается, так как работаем с макс. 2гб файлами.</remarks>
-        public int Position { get; private set; }
-
         #endregion Поля, свойства
 
         #region Конструктор
@@ -53,18 +42,18 @@ namespace Storage.Core.Helpers
         #region Методы (public)
 
         /// <summary>
+        /// Установить на указанную позицию.
+        /// </summary>
+        /// <param name="position">Позиция.</param>
+        public void SetPosition(int position) => _bufferedStream.Position = position;
+
+        /// <summary>
         /// Записать данные.
         /// </summary>
         /// <param name="data">Массив данных.</param>
         /// <param name="offset">Отступ.</param>
         /// <param name="count">Длина.</param>
-        public void Write(byte[] data, int offset, int count)
-        {
-            _bufferedStream.Write(data, offset, count);
-            Position = (int)_bufferedStream.Position;
-        }
-
-
+        public void Write(byte[] data, int offset, int count) => _bufferedStream.Write(data, offset, count);
 
         /// <summary>
         /// Сохраняет несохраненные данные и освобождает неуправляемые ресурсы.
@@ -72,7 +61,7 @@ namespace Storage.Core.Helpers
         public void Dispose()
         {
             StopTimer();
-            FlushToDisk(true);
+            FlushToDisk();
             _bufferedStream.Dispose();
             _autoFlushTimer.Dispose();
         }
@@ -84,28 +73,12 @@ namespace Storage.Core.Helpers
         /// <summary>
         /// Остановить автосохранение.
         /// </summary>
-        private void StopTimer()
-        {
-            _autoFlushTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        }
+        private void StopTimer() => _autoFlushTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         /// <summary>
-        /// Записать на диск, если есть изменения.
+        /// Записать на диск.
         /// </summary>
-        /// <param name="force">Записать, без проверок.</param>
-        private void FlushToDisk(bool force = false)
-        {
-            if (!force && LastFlushedOffset == Position)
-            {
-                return;
-            }
-
-            if (_bufferedStream != null)
-            {
-                _bufferedStream.Flush();
-                LastFlushedOffset = Position;
-            }
-        }
+        private void FlushToDisk() => _bufferedStream?.Flush();
 
         #endregion Методы (private)
     }

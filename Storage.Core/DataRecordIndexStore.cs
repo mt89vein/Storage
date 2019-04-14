@@ -24,12 +24,17 @@ namespace Storage.Core
         /// <summary>
         /// Буферизированый писатель в файл.
         /// </summary>
-        private readonly BufferedFileWriter _bufferedFileWriter;
+        private BufferedFileWriter _bufferedFileWriter;
 
         /// <summary>
         /// Размер буфера.
         /// </summary>
         private const int BufferSize = 8096;
+
+        /// <summary>
+        /// Название и путь к файлу - индексу.
+        /// </summary>
+        private readonly string _fileName;
 
         /// <summary>
         /// Объект для блокировок на запись в индекс.
@@ -47,10 +52,9 @@ namespace Storage.Core
         public DataRecordIndexStore(string directory)
         {
             _tree = new BTree<long, DataRecordIndexPointer>();
-            var fileName = Path.Combine(directory, "data-record-index-pointers.index");
-            _bufferedFileWriter =
-                new BufferedFileWriter(GetFileStream(fileName), BufferSize, TimeSpan.FromMilliseconds(500));
-            ReconstituteIndexFromFile(fileName);
+            _fileName = Path.Combine(directory, "data-record-index-pointers.index");
+            InitializeBufferedFileWriter();
+            ReconstituteIndexFromFile();
         }
 
         #endregion Конструктор
@@ -111,6 +115,21 @@ namespace Storage.Core
         }
 
         /// <summary>
+        /// Почистить все данные. Используется для перестройки индекса.
+        /// </summary>
+        public void Clear()
+        {
+            _tree.Clear();
+            var fileInfo = new FileInfo(_fileName);
+            if (fileInfo.Exists)
+            {
+                _bufferedFileWriter.Dispose();
+                fileInfo.Delete();
+                InitializeBufferedFileWriter();
+            }
+        }
+
+        /// <summary>
         /// Высвобождаем выделенные неуправляемые ресурсы.
         /// </summary>
         public void Dispose()
@@ -122,6 +141,14 @@ namespace Storage.Core
         #endregion Методы (public)
 
         #region Методы (private)
+
+        /// <summary>
+        /// Инициализировать буферизированный писатель в файл.
+        /// </summary>
+        private void InitializeBufferedFileWriter()
+        {
+            _bufferedFileWriter = new BufferedFileWriter(GetFileStream(_fileName), BufferSize, TimeSpan.FromMilliseconds(500));
+        }
 
         /// <summary>
         /// Создать, если не существует файла для хранения индекса
@@ -153,15 +180,14 @@ namespace Storage.Core
         /// <summary>
         /// Прочитать индекс из файла.
         /// </summary>
-        /// <param name="fileName">Путь к файлу с индексом.</param>
-        private void ReconstituteIndexFromFile(string fileName)
+        private void ReconstituteIndexFromFile()
         {
             lock (_syncWriteLock)
             {
                 _tree.Clear();
 
                 using (var fileStream = new FileStream(
-                    fileName,
+                    _fileName,
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite,

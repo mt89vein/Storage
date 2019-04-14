@@ -1,6 +1,7 @@
 ﻿using Storage.Core.Configuration;
 using Storage.Core.Helpers;
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Storage.Core.Models
@@ -16,7 +17,7 @@ namespace Storage.Core.Models
     /// </summary>
     public class DataPage : IDisposable
     {
-        #region Поля
+        #region Поля, свойства
 
         /// <summary>
         /// Конфигурация страницы.
@@ -24,7 +25,7 @@ namespace Storage.Core.Models
         private readonly DataPageConfig _config;
 
         /// <summary>
-        /// Поток для записи в файл.
+        /// Поток для записи данных в файл.
         /// <para>
         /// Инициализируется, только если в файл можно записать хоть какие-то данные.
         /// </para>
@@ -42,13 +43,20 @@ namespace Storage.Core.Models
         private readonly object _writeSyncObject = new object();
 
         /// <summary>
-        /// Позиция, с которой можно писать новые данные.
+        /// Локальный (в рамках страницы) индекс записей.
         /// </summary>
-        private int _dataFreeOffset;
+        private readonly List<DataPageLocalIndex> _localItems = new List<DataPageLocalIndex>();
 
-        #endregion Поля
+        /// <summary>
+        /// Заголовок страницы.
+        /// </summary>
+        public DataPageHeader Header { get; private set; }
 
-        #region Свойства
+        // TODO: тесты на корректность записи индексов.
+        /// <summary>
+        /// Локальный индекс данных на странице.
+        /// </summary>
+        public IReadOnlyCollection<DataPageLocalIndex> LocalItems => _localItems;
 
         /// <summary>
         /// Номер страницы.
@@ -61,7 +69,7 @@ namespace Storage.Core.Models
         /// <remarks>Используется для автоматической выгрузки из памяти, если страница некоторое время не была нужна.</remarks>
         public DateTime LastActiveTime { get; private set; }
 
-        #endregion Свойства
+        #endregion Поля, свойства
 
         #region Конструктор
 
@@ -95,39 +103,76 @@ namespace Storage.Core.Models
         }
 
         /// <summary>
-        /// Получить количество байт, которое можно записать на данную страницу.
+        /// Проверить на наличие достаточного места для записи указанного количества байт.
+        /// </summary>
+        /// <param name="length">Размер байт, который требуется записать.</param>
+        /// <returns>True, если достаточно места для записи указанного количества байт.</returns>
+        public bool HasEnoughSpaceFor(int length)
+        {
+            return GetFreeSpaceFor(length) == length;
+        }
+
+        /// <summary>
+        /// Получить общее кол-во байт, которое доступно для записи.
         /// </summary>
         /// <returns>Количество байт, которое можно записать на данную страницу.</returns>
         public int GetFreeSpaceLength()
         {
-            return _config.PageSize - _dataFreeOffset;
+            return Header.UpperOffset - Header.LowerOffset;
+        }
+
+        /// <summary>
+        /// Получить количество байт, которое можно записать на данную страницу.
+        /// </summary>
+        /// <returns>Количество байт, которое можно записать на данную страницу.</returns>
+        public int GetFreeSpaceFor(int length)
+        {
+            var freeSpace = Header.UpperOffset - Header.LowerOffset;
+
+            // Если места недостаточно даже чтобы записать указатель, возвращаем 0.
+            if (freeSpace < DataPageLocalIndex.Size)
+            {
+                return 0;
+            }
+
+            // если свободного места хватает на запись и указателей и данных, возвращаем, всю длину.
+            if (freeSpace > DataPageLocalIndex.Size + length)
+            {
+                return length;
+            }
+
+            // в противном случае, резервируем место под указатель, а остальное под запись. 
+            return freeSpace - DataPageLocalIndex.Size;
         }
 
         /// <summary>
         /// Попытаться записать данные на страницу.
         /// </summary>
+        /// <param name="recordId">Идентификатор записи.</param>
         /// <param name="data">Массив байт для записи.</param>
-        /// <param name="offset">Позиция, с которой пойдет запись новых данных.</param>
-        /// <returns>Номер записи.</returns>
-        public bool TrySaveData(byte[] data, out int offset)
+        /// <param name="offset">Сдвиг, на котором находятся данные.</param>
+        /// <returns>True, если удалось записать данные.</returns>
+        public bool TrySaveData(long recordId, byte[] data, out int offset)
         {
             // Обновляем время последней активности
             LastActiveTime = DateTime.UtcNow;
             offset = 0;
-
             try
             {
                 lock (_writeSyncObject)
                 {
-                    // dataOffset, с которого начинается запись.
-                    offset = _bufferedFileWriter.Position;
+                    Header.UpperOffset -= data.Length;
+                    Header.LowerOffset += DataPageLocalIndex.Size;
 
+                    offset = Header.UpperOffset;
+
+                    _bufferedFileWriter.SetPosition(offset);
                     _bufferedFileWriter.Write(data, 0, data.Length);
 
-                    // Сдвигаем оффсет.
-                    _dataFreeOffset += data.Length;
+                    AddToLocalIndex(recordId, offset, data.Length);
+                    UpdateHeader();
 
-                    if (GetFreeSpaceLength() == 0)
+                    if (GetFreeSpaceLength() <= DataPageLocalIndex.Size)
                     {
                         SetCompleted();
                     }
@@ -140,6 +185,30 @@ namespace Storage.Core.Models
                 // TODO: log error.
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Записать изменения в заголовке в файл.
+        /// </summary>
+        private void UpdateHeader()
+        {
+            _bufferedFileWriter.SetPosition(0);
+            _bufferedFileWriter.Write(Header.GetBytes(), 0, DataPageHeader.Size);
+        }
+
+        /// <summary>
+        /// Записать локальный индекс.
+        /// </summary>
+        /// <param name="recordId">Идентификатор записи.</param>
+        /// <param name="offset">Сдвиг.</param>
+        /// <param name="length">Длина.</param>
+        private void AddToLocalIndex(long recordId, int offset, int length)
+        {
+            var dataPageLocalIndex = new DataPageLocalIndex(recordId, offset, length);
+            _bufferedFileWriter.SetPosition(DataPageHeader.Size + _localItems.Count * DataPageLocalIndex.Size);
+            _bufferedFileWriter.Write(dataPageLocalIndex.GetBytes(), 0, DataPageLocalIndex.Size);
+
+            _localItems.Add(dataPageLocalIndex);
         }
 
         /// <summary>
@@ -201,34 +270,110 @@ namespace Storage.Core.Models
                 Directory.CreateDirectory(Path.GetDirectoryName(_fileName));
             }
 
+            var fileStream = new FileStream(
+                _fileName,
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.ReadWrite,
+                _config.BufferSize,
+                FileOptions.SequentialScan
+            );
+
             // Если файл не найден, или файл есть, но он не завершенный
             if (!fileInfo.Exists || !isCompleted)
             {
-                var fileStream = new FileStream(
-                    _fileName,
-                    FileMode.Append,
-                    FileAccess.Write,
-                    FileShare.Read,
-                    _config.BufferSize,
-                    FileOptions.SequentialScan
-                );
+                // если длина оказалась больше 0, значит файл уже существует и инициализирован.
+                if (fileStream.Length > 0)
+                {
+                    ReadDataPageMetadata(fileStream);
+                }
+                else
+                {
+                    // файл новый, поэтому заполняем нулями.
+                    fileStream.SetLength(_config.PageSize);
 
-                // для нового 0, для незавершенного - конец файла, откуда можно продолжить запись.
-                _dataFreeOffset = (int)fileStream.Position;
+                    Header = new DataPageHeader
+                    { 
+                        // для нового файла нижняя граница - после заголовка
+                        LowerOffset = DataPageHeader.Size,
+                        // а верхняя - конец файла.
+                        UpperOffset = (int)fileStream.Length
+                    };
+                }
 
                 _bufferedFileWriter = new BufferedFileWriter(
                     fileStream,
                     _config.BufferSize,
                     _config.AutoFlushInterval
                 );
+
+                // записать заголовок в файл.
+                UpdateHeader();
             }
             else
             {
-                _dataFreeOffset = (int)fileInfo.Length;
+                // если файл существует и завершен, то читаем только метаданные.
+                ReadDataPageMetadata(fileStream);
             }
 
             // Выключаем индексацию файла операционной системой, так как в файле массив байт, искать по контенту не получится :)
             fileInfo.Attributes = FileAttributes.NotContentIndexed;
+        }
+
+        /// <summary>
+        /// Прочитать метаданные страницы.
+        /// </summary>
+        /// <param name="stream">Поток.</param>
+        private void ReadDataPageMetadata(Stream stream)
+        {
+            ReadHeader();
+
+            // если LowerOffset больше чем размер заголовка, то значит есть данные на странице.
+            if (Header.LowerOffset > DataPageHeader.Size)
+            {
+                // читаем локальные индексы.
+                ReadDataPageLocalIndexes(stream);
+            }
+
+            void ReadHeader()
+            {
+                var buffer = new byte[DataPageHeader.Size];
+                stream.Seek(0, SeekOrigin.Begin);
+                stream.Read(buffer, 0, DataPageHeader.Size);
+                var spanBuffer = buffer.AsSpan();
+                Header = new DataPageHeader
+                {
+                    LowerOffset = spanBuffer.DecodeInt(0, out var nextStartOffset),
+                    UpperOffset = spanBuffer.DecodeInt(nextStartOffset, out _)
+                };
+            }
+        }
+
+        /// <summary>
+        /// Прочитать из потока файла индексы.
+        /// </summary>
+        /// <param name="stream">Поток.</param>
+        private void ReadDataPageLocalIndexes(Stream stream)
+        {
+            _localItems.Clear();
+
+            var localIndexSize = Header.LowerOffset - DataPageHeader.Size;
+            var localItemsCount = localIndexSize / DataPageLocalIndex.Size;
+            var buffer = new byte[localIndexSize];
+            stream.Read(buffer, 0, localIndexSize);
+            var span = buffer.AsSpan();
+
+            for (var i = 0; i < localItemsCount; i++)
+            {
+                var slice = span.Slice(i * DataPageLocalIndex.Size, DataPageLocalIndex.Size);
+                _localItems.Add(
+                    new DataPageLocalIndex(
+                        slice.DecodeLong(0, out var nextStartOffset),
+                        slice.DecodeInt(nextStartOffset, out nextStartOffset),
+                        slice.DecodeInt(nextStartOffset, out _)
+                    )
+                );
+            }
         }
 
         /// <summary>

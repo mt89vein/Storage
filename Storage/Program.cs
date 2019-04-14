@@ -1,8 +1,10 @@
-﻿using Storage.Core;
+using Storage.Core;
 using Storage.Core.Configuration;
 using Storage.Core.Models;
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading;
 
@@ -52,20 +54,23 @@ namespace Storage
 
                 if (dataRecord1?.Body != null)
                 {
+                    Debug.Assert(dog.GetBytes().SequenceEqual(dataRecord1.Body));
                     var animal = Dog.ReadFrom(dataRecord1.Body);
                 }
 
                 if (dataRecord2?.Body != null)
                 {
+                    Debug.Assert(anotherDog.GetBytes().SequenceEqual(dataRecord2.Body));
                     var animal = Dog.ReadFrom(dataRecord2.Body);
                 }
 
                 if (dataRecord3?.Body != null)
                 {
+                    Debug.Assert(anotherOneDog.GetBytes().SequenceEqual(dataRecord3.Body));
                     var animal = Dog.ReadFrom(dataRecord3.Body);
                 }
 
-                foreach (var record in dataPageManager.AsEnumerable(2))
+                foreach (var record in dataPageManager.AsEnumerable(1))
                 {
                     var animal = Dog.ReadFrom(record.Body);
                 }

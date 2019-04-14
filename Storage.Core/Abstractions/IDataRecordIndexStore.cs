@@ -26,8 +26,13 @@ namespace Storage.Core.Abstractions
         /// <summary>
         /// Получить индекс для итерирования с указанного идентификатора записи.
         /// </summary>
-        /// <param name="fromRecordId">Идентификатор записи, от которого нужен итератор.</param>
+        /// <param name="fromRecordId">Идентификатор записи, начиная с которого нужен итератор.</param>
         /// <returns>Итератор.</returns>
         IEnumerable<DataRecordIndexPointer> AsEnumerable(long fromRecordId = 0);
+
+        /// <summary>
+        /// Почистить все данные. Используется для перестройки индекса.
+        /// </summary>
+        void Clear();
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Storage.Core.Helpers
@@ -139,20 +140,6 @@ namespace Storage.Core.Helpers
         #region Span реализации
 
         /// <summary>
-        /// Получить строку из переданного среза массива байт.
-        /// </summary>
-        /// <param name="sourceBuffer">Срез массива байт для конвертации.</param>
-        /// <param name="startOffset">Начальный сдвиг.</param>
-        /// <param name="nextStartOffset">Оффсет после чтения.</param>
-        /// <returns>Строка.</returns>
-        public static string DecodeString(this Span<byte> sourceBuffer, int startOffset, out int nextStartOffset)
-        {
-            nextStartOffset = startOffset + sourceBuffer.Length;
-
-            return Encoding.UTF8.GetString(sourceBuffer.ToArray());
-        }
-
-        /// <summary>
         /// Получить <see cref="short"/> из среза массива байт.
         /// </summary>
         /// <param name="sourceBuffer">Срез массива байт для конвертации.</param>
@@ -162,8 +149,7 @@ namespace Storage.Core.Helpers
         public static short DecodeShort(this Span<byte> sourceBuffer, int startOffset, out int nextStartOffset)
         {
             var shortBytes = sourceBuffer.Slice(startOffset, sizeof(short), out nextStartOffset);
-
-            return BitConverter.ToInt16(shortBytes.ToArray(), 0);
+            return MemoryMarshal.Read<short>(shortBytes);
         }
 
         /// <summary>
@@ -177,7 +163,7 @@ namespace Storage.Core.Helpers
         {
             var intBytes = sourceBuffer.Slice(startOffset, sizeof(int), out nextStartOffset);
 
-            return BitConverter.ToInt32(intBytes.ToArray(), 0);
+            return MemoryMarshal.Read<int>(intBytes);
         }
 
         /// <summary>
@@ -191,7 +177,7 @@ namespace Storage.Core.Helpers
         {
             var longBytes = sourceBuffer.Slice(startOffset, sizeof(long), out nextStartOffset);
 
-            return BitConverter.ToInt64(longBytes.ToArray(), 0);
+            return MemoryMarshal.Read<long>(longBytes);
         }
 
         /// <summary>
@@ -206,7 +192,7 @@ namespace Storage.Core.Helpers
             // DateTime -> 8 Byte, as Long.
             var bytes = sourceBuffer.Slice(startOffset, sizeof(long), out nextStartOffset);
 
-            return new DateTime(BitConverter.ToInt64(bytes.ToArray(), 0));
+            return MemoryMarshal.Read<DateTime>(bytes);
         }
 
         /// <summary>

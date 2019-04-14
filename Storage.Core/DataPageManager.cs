@@ -5,6 +5,7 @@ using Storage.Core.Models;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -106,19 +107,18 @@ namespace Storage.Core
 
             // пишем последовательно, поэтому получаем всегда для записи последнюю страницу.
             var currentDataPage = GetLastPage();
-            // узнаем, сколько можно записать в текущую страницу:
-            var freeSpaceLength = currentDataPage.GetFreeSpaceLength();
 
-            // если хватает места для записи на одной странице
-            if (freeSpaceLength > dataLength)
+            // если на текущей странице хватает свободного места для данных, указанной длины
+            if (currentDataPage.HasEnoughSpaceFor(dataLength))
             {
-                // записали на диск.
-                currentDataPage.TrySaveData(data, out var dataOffset);
-                // пишем в индекс
+                // то пишем в текущую страницу.
+                currentDataPage.TrySaveData(record.Id, data, out var dataOffset);
+                // добавляем в индекс
                 _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
                         record.Id,
                         currentDataPage.PageId,
-                        dataOffset, dataLength
+                        dataOffset,
+                        dataLength
                     )
                 );
 
@@ -129,36 +129,47 @@ namespace Storage.Core
             var dataRecordIndexPointers = new List<DataRecordIndexPointer>();
             var writtenBytes = 0;
             var dataSpan = data.AsSpan();
+            
+            // узнаем, сколько можно записать в текущую страницу:
+            var freeSpaceLength = currentDataPage.GetFreeSpaceFor(dataSpan.Length);
 
-            // заполним оставшееся место в текущей странице 
-            if (currentDataPage.TrySaveData(dataSpan.Slice(0, freeSpaceLength).ToArray(), out var offset))
+            // если оказалось что мы что-то можем записать.
+            if (freeSpaceLength > 0)
             {
-                dataRecordIndexPointers.Add(new DataRecordIndexPointer(
-                        record.Id,
-                        currentDataPage.PageId,
-                        offset,
-                        freeSpaceLength
-                    )
-                );
-            }
+                // то срезаем кусок данных
+                var firstWrite = dataSpan.Slice(0, freeSpaceLength).ToArray();
 
-            writtenBytes += freeSpaceLength;
+                // и заполним оставшееся место в текущей странице 
+                if (currentDataPage.TrySaveData(record.Id, firstWrite, out var offset))
+                {
+                    dataRecordIndexPointers.Add(new DataRecordIndexPointer(
+                            record.Id,
+                            currentDataPage.PageId,
+                            offset,
+                            firstWrite.Length
+                        )
+                    );
+                }
+
+                writtenBytes += freeSpaceLength;
+            }
 
             // и до тех пор, пока все не будет записано...
             while (writtenBytes < dataLength)
             {
-                // создадим новую страницу.
+                // создадём новую страницу.
                 currentDataPage = CreateNew();
 
-                var bytesToWrite = dataLength - writtenBytes > _config.PageSize
-                    ? _config.PageSize
-                    : dataLength - writtenBytes;
+                // получим кол-во байт, которое можно записать в текущую страницу.
+                var bytesToWrite =  currentDataPage.GetFreeSpaceFor(dataLength - writtenBytes);
+
+                Debug.Assert(bytesToWrite != 0);
 
                 // создаем разрез для записи.
-                var slice = dataSpan.Slice(writtenBytes, bytesToWrite);
+                var slice = dataSpan.Slice(writtenBytes, bytesToWrite).ToArray();
 
                 // сохраняем.
-                currentDataPage.TrySaveData(slice.ToArray(), out offset);
+                currentDataPage.TrySaveData(record.Id, slice, out var offset);
                 dataRecordIndexPointers.Add(new DataRecordIndexPointer(
                         record.Id,
                         currentDataPage.PageId,
@@ -169,6 +180,7 @@ namespace Storage.Core
                 writtenBytes += slice.Length;
             }
 
+            // Первый индекс сделаем основным, остальные как дополнения.
             var index = dataRecordIndexPointers.First();
             _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
                     index.DataRecordId,
@@ -187,17 +199,34 @@ namespace Storage.Core
         /// <returns>Контейнер данных.</returns>
         public DataRecord Read(long recordId)
         {
-            if (!_dataRecordIndexStore.TryGetIndex(recordId, out var index))
+            if (_dataRecordIndexStore.TryGetIndex(recordId, out var index))
             {
-                // TODO: implement FULL SCAN (для мультистраничников читать до тех пор, пока номер записи не изменится.
-                // можно сделать счетчик индекс миссов, и если по-какому то из dataPage слишком много миссов, то нужно перестроить индекс, побыстрому в фоне.
-                // DataPageHeader.DataRecordStartId добавить в заголовок и поиск упрощается в разы:
-                // _dataPages.FirstOrDefault(dp => dp.PageId.DataRecordStartId >= dataRecordId) и сканить уже по найденной странице. Если не удалось и так найти.. то тут косяк, надо бежать по всем страницам...)
-
-                return null;
+                return new DataRecord(GetDataRecordBytes(index));
             }
 
-            return new DataRecord(GetDataRecordBytes(index));
+            // если по индексу найти не удалось, то скорее всего данные в памяти порченные, поэтому будем бежать по локальным индексам.
+            // TODO: сделать счетчик IndexMissCount и если много миссов, то нужно запустить задачу на перестройку индекса в фоне.
+            var localIndexItems = _dataPages
+                .Where(dp => dp.Value.LocalItems.Any(l => l.Id == recordId))
+                .Select(dp => new { DataPageId = dp.Key, Index = dp.Value.LocalItems.SingleOrDefault(l => l.Id == recordId) })
+                .ToList();
+
+            if (localIndexItems.Any())
+            {
+                using (var memoryStream = new MemoryStream())
+                {
+                    foreach (var localIndexItem in localIndexItems)
+                    {
+                        var dp = GetDataPage(localIndexItem.DataPageId);
+                        var recordPiece = dp.ReadBytes(localIndexItem.Index.Offset, localIndexItem.Index.Length);
+                        memoryStream.Write(recordPiece, 0, recordPiece.Length);
+                    }
+
+                    return new DataRecord(memoryStream.ToArray());
+                }
+            }
+
+            return null;
         }
 
         // TODO: тесты.
@@ -228,8 +257,50 @@ namespace Storage.Core
 
         #region Методы (private)
 
+        // TODO: тесты
         /// <summary>
-        /// Прочитать (собрать) массив байт записи по индексу.
+        /// Перестроить индекс, начиная с указанного номера страницы.
+        /// </summary>
+        /// <param name="dataPageId">Номер страницы, с которой необходимо перестроить индексы.</param>
+        private void RebuildIndexFrom(int dataPageId = 1)
+        {
+            lock (_createDataPageLock)
+            {
+                _dataRecordIndexStore.Clear();
+
+                // Соберем все локальные индексы из метаданных страниц, сгруппировав по идентификатору записи.
+                var localIndexItems = _dataPages.Where(d => d.Key >= dataPageId)
+                    .SelectMany(d => d.Value.LocalItems.Select(li => new {DataPageId = d.Key, LocalItem = li}))
+                    .GroupBy(d => d.LocalItem.Id);
+
+                // Пробежав по всем таким группам и соберем индексы.
+                foreach (var localIndexItem in localIndexItems)
+                {
+                    var dataRecordIndexPointers = localIndexItem.Select(t =>
+                        new DataRecordIndexPointer(
+                            localIndexItem.Key,
+                            t.DataPageId,
+                            t.LocalItem.Offset,
+                            t.LocalItem.Length
+                        )
+                    );
+
+                    // Первый индекс сделаем основным, остальные как дополнения.
+                    var index = dataRecordIndexPointers.First();
+                    _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
+                            index.DataRecordId,
+                            index.DataPageNumber,
+                            index.Offset,
+                            index.Length,
+                            dataRecordIndexPointers.Skip(1).ToArray()
+                        )
+                    );
+                }
+            }
+        }
+
+        /// <summary>
+        /// Прочитать (или собрать для мультистраничников) массив байт записи по индексу.
         /// </summary>
         /// <param name="recordIndexPointer">Указатель на данные на странице.</param>
         /// <returns>Массив байт записи.</returns>
@@ -337,6 +408,7 @@ namespace Storage.Core
         /// <param name="pageId">Номер страницы.</param>
         /// <param name="page">Страница данных.</param>
         /// <returns>True, если удалось найти файл и загрузить мета информацию.</returns>
+        /// <remarks>Используется только в случае, если по какой-то причине метаданные страницы вообще не были загружены в память.</remarks>
         private bool TryLoadPage(int pageId, out DataPage page)
         {
             page = default;
@@ -347,7 +419,7 @@ namespace Storage.Core
                 return false;
             }
 
-            // считаем что страница завершена, так как не завершенная всегда одна и её грузим в память при инициализации менеджера.
+            // считаем что страница завершена, так как не завершенная всегда одна (последняя) а её мы всегда грузим в память при инициализации менеджера.
             page = new DataPage(_config.DataPageConfig, pageId, fileName, true);
 
             AddDataPage(page);
