@@ -40,18 +40,14 @@ namespace Storage.Tests.DataPage
         public void ClearTempFilesDirectory()
         {
             _dataPage.Dispose();
-            if (Directory.Exists(TempFilesDirectory))
-            {
-                Directory.Delete(TempFilesDirectory, true);
-            }
         }
 
         [SetUp]
         public void SetUp()
         {
-            if (!Directory.Exists(TempFilesDirectory))
+            if (Directory.Exists(TempFilesDirectory))
             {
-                Directory.CreateDirectory(TempFilesDirectory);
+                Directory.Delete(TempFilesDirectory, true);
             }
 
             _dataPage = new Core.Models.DataPage(_config, 1, Path.Combine(TempFilesDirectory, "datapage-1"), false);
@@ -70,14 +66,13 @@ namespace Storage.Tests.DataPage
 
         [Test]
         [Description("Обновляется время последней активности при действиях.")]
-        public async Task CorrectlyUpdatesActiveTime()
+        public void CorrectlyUpdatesActiveTime()
         {
             var initialActiveTime = _dataPage.LastActiveTime;
 
             _dataPage.TrySaveData(1,new byte[12], out var offset);
             var activeTimeAfterSaveData = _dataPage.LastActiveTime;
             Assert.AreNotEqual(initialActiveTime, activeTimeAfterSaveData);
-            await Task.Delay(500); // дожидаемся сохранения.
 
             _dataPage.Read(offset, 12);
             var activeTimeAfterRead = _dataPage.LastActiveTime;
@@ -114,7 +109,6 @@ namespace Storage.Tests.DataPage
                 _dataPage.TrySaveData(1, new byte[bytesToWrite], out _);
                 initialFreeSpace -= (bytesToWrite + DataPageLocalIndex.Size);
                 Assert.AreEqual(initialFreeSpace, _dataPage.GetFreeSpaceLength());
-
             }
         }
 

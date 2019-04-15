@@ -23,89 +23,87 @@ namespace Storage.Tests.DataManager
         /// Размер страницы данных.
         /// </summary>
         private const int PageSize = 100;
-
-        /// <summary>
-        /// Менеджер страниц.
-        /// </summary>
-        private DataPageManager _dataPageManager;
-
-        /// <summary>
-        /// Конфигурация менеджера страниц данных.
-        /// </summary>
-        private readonly DataPageManagerConfig _config = new DataPageManagerConfig("DataPageManager-1", PageSize, TempFilesDirectory);
         
         #endregion Поля
-
-        #region Clean/Prepare management
-
-        [TearDown]
-        public void ClearTempFilesDirectory()
-        {
-            _dataPageManager.Dispose();
-            if (Directory.Exists(TempFilesDirectory))
-            {
-                Directory.Delete(TempFilesDirectory, true);
-            }
-        }
-
-        [SetUp]
-        public void SetUp()
-        {
-            if (!Directory.Exists(TempFilesDirectory))
-            {
-                Directory.CreateDirectory(TempFilesDirectory);
-            }
-
-            _dataPageManager = new DataPageManager(_config);
-        }
-
-        #endregion Clean/Prepare management
 
         #region Тесты
 
         [Test]
         [Description("Корректно записывает данные, которые не влезают на одну страницу целиком.")]
-        public async Task MultiPageWriteTest()
+        public void MultiPageWriteTest()
         {
-            Assert.AreEqual(0, _dataPageManager.DataPagesCount);
-            Assert.IsNull(_dataPageManager.Read(1));
-            Assert.IsNull(_dataPageManager.Read(2));
-            Assert.IsNull(_dataPageManager.Read(3));
+            const string pageManagerName = "DataPageManager-1";
 
-            var data = new string('5', 500);
-            _dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(new string('1', 100))));
-            _dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data)));
+            PrepareFor(pageManagerName);
 
-            await Task.Delay(500); // даём время на автосохранение.
+            using (var dataPageManager = new DataPageManager(new DataPageManagerConfig(pageManagerName, PageSize, TempFilesDirectory)))
+            {
+                Assert.Multiple(() =>
+                {
+                    Assert.AreEqual(0, dataPageManager.DataPagesCount);
+                    Assert.IsNull(dataPageManager.Read(1));
+                    Assert.IsNull(dataPageManager.Read(2));
+                    Assert.IsNull(dataPageManager.Read(3));
+                });
 
-            var dataRecord = _dataPageManager.Read(2);
+                var data = new string('5', 500);
+                dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(new string('1', 100))));
+                dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data)));
 
-            Assert.AreEqual(data, Encoding.UTF8.GetString(dataRecord.Body));
+                var dataRecord = dataPageManager.Read(2);
+
+                Assert.AreEqual(data, Encoding.UTF8.GetString(dataRecord.Body));
+            }
         }
 
         [Test]
         [Description("Корректно записывает данные, которые влезают на одну страницу целиком.")]
-        public async Task SinglePageWriteTest()
+        public void SinglePageWriteTest()
         {
-            Assert.AreEqual(0, _dataPageManager.DataPagesCount);
-            Assert.IsNull(_dataPageManager.Read(1));
-            Assert.IsNull(_dataPageManager.Read(2));
-            Assert.IsNull(_dataPageManager.Read(3));
+            const string pageManagerName = "DataPageManager-2";
 
-            var data1 = new string('1', 50);
-            var data2 = new string('2', 70);
-            _dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(data1)));
-            _dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data2)));
+            PrepareFor(pageManagerName);
 
-            await Task.Delay(500); // даём время на автосохранение.
+            using (var dataPageManager = new DataPageManager(new DataPageManagerConfig(pageManagerName, PageSize, TempFilesDirectory)))
+            {
+                Assert.Multiple(() =>
+                {
+                    Assert.AreEqual(0, dataPageManager.DataPagesCount);
+                    Assert.IsNull(dataPageManager.Read(1));
+                    Assert.IsNull(dataPageManager.Read(2));
+                    Assert.IsNull(dataPageManager.Read(3));
+                });
 
-            var dataRecord1 = _dataPageManager.Read(1);
-            var dataRecord2 = _dataPageManager.Read(2);
+                var data1 = new string('1', 50);
+                var data2 = new string('2', 70);
+                dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(data1)));
+                dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data2)));
 
-            Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body));
-            Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body));
+                var dataRecord1 = dataPageManager.Read(1);
+                var dataRecord2 = dataPageManager.Read(2);
+
+                Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body));
+                Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body));
+            }
         }
 
         #endregion Тесты
+
+        #region Вспомогательные методы
+
+        /// <summary>
+        /// Производит подготовку перед тестом.
+        /// </summary>
+        /// <param name="scopedPath">Путь.</param>
+        private static void PrepareFor(string scopedPath)
+        {
+            var directory = Path.Combine(TempFilesDirectory, scopedPath);
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+
+        #endregion Вспомогательные методы
     }
 }

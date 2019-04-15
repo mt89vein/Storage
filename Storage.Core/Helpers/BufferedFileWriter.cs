@@ -34,7 +34,7 @@ namespace Storage.Core.Helpers
         public BufferedFileWriter(Stream stream, int buferSize, TimeSpan autoFlushInterval)
         {
             _bufferedStream = new BufferedStream(stream, buferSize);
-            _autoFlushTimer = new Timer(state => FlushToDisk(), null, TimeSpan.Zero, autoFlushInterval);
+            _autoFlushTimer = new Timer(state => FlushToDisk(), null, autoFlushInterval, autoFlushInterval);
         }
 
         #endregion Конструктор
@@ -62,8 +62,8 @@ namespace Storage.Core.Helpers
         {
             StopTimer();
             FlushToDisk();
-            _bufferedStream.Dispose();
-            _autoFlushTimer.Dispose();
+            _bufferedStream?.Dispose();
+            _autoFlushTimer?.Dispose();
         }
 
         #endregion Методы (public)
@@ -73,7 +73,7 @@ namespace Storage.Core.Helpers
         /// <summary>
         /// Остановить автосохранение.
         /// </summary>
-        private void StopTimer() => _autoFlushTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        private void StopTimer() => _autoFlushTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         /// <summary>
         /// Записать на диск.

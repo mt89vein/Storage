@@ -1,25 +1,27 @@
 ﻿using NUnit.Framework;
 using Storage.Core.Abstractions;
+using Storage.Core.Configuration;
 using Storage.Core.Models;
+using System;
 using System.IO;
 
-namespace Storage.Tests.DataRecordIndexStore
+namespace Storage.Tests.DataRecordIndexStorage
 {
     [TestFixture]
     [Description("Тесты на корректную работу B-tree индекса (без проверок файлов)")]
-    public class DataRecordIndexStoreInMemoryTests
+    public class DataRecordIndexStorageInMemoryTests
     {
         #region Поля
 
         /// <summary>
         /// Тестируемый сервис.
         /// </summary>
-        private IDataRecordIndexStore _dataRecordIndexStore;
+        private IDataRecordIndexStorage _dataRecordIndexStorage;
 
         /// <summary>
         /// Директория для хранения временных файлов.
         /// </summary>
-        private const string TempFilesDirectory = "./DataRecordIndexStore/TempFiles";
+        private const string TempFilesDirectory = "./DataRecordIndexStorage/TempFiles";
 
         #endregion Поля
 
@@ -28,7 +30,7 @@ namespace Storage.Tests.DataRecordIndexStore
         [TearDown]
         public void ClearTestFilesDirectory()
         {
-            _dataRecordIndexStore.Dispose();
+            _dataRecordIndexStorage.Dispose();
             if (Directory.Exists(TempFilesDirectory))
             {
                 Directory.Delete(TempFilesDirectory, true);
@@ -42,7 +44,7 @@ namespace Storage.Tests.DataRecordIndexStore
             {
                 Directory.CreateDirectory(TempFilesDirectory);
             }
-            _dataRecordIndexStore = new Core.DataRecordIndexStore(TempFilesDirectory);
+            _dataRecordIndexStorage = new Core.DataRecordIndexStorage(TempFilesDirectory, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200)));
         }
 
         #endregion Clean/Prepare management
@@ -53,9 +55,9 @@ namespace Storage.Tests.DataRecordIndexStore
         public void CorrectlyAddToIndex()
         {
             var dataRecordIndexPointer = new DataRecordIndexPointer(1, 10, 0, 132);
-            _dataRecordIndexStore.AddToIndex(dataRecordIndexPointer);
+            _dataRecordIndexStorage.AddToIndex(dataRecordIndexPointer);
 
-            var isFound = _dataRecordIndexStore.TryGetIndex(dataRecordIndexPointer.DataRecordId, out var pointer);
+            var isFound = _dataRecordIndexStorage.TryGetIndex(dataRecordIndexPointer.DataRecordId, out var pointer);
 
             Assert.Multiple(() =>
             {
@@ -70,12 +72,12 @@ namespace Storage.Tests.DataRecordIndexStore
             var dataRecordIndexPointer1 = new DataRecordIndexPointer(1, 10, 0, 132);
             var dataRecordIndexPointer12 = new DataRecordIndexPointer(12, 10, 0, 132);
             var dataRecordIndexPointer2 = new DataRecordIndexPointer(2, 10, 0, 132);
-            _dataRecordIndexStore.AddToIndex(dataRecordIndexPointer1);
-            _dataRecordIndexStore.AddToIndex(dataRecordIndexPointer12);
-            _dataRecordIndexStore.AddToIndex(dataRecordIndexPointer2);
+            _dataRecordIndexStorage.AddToIndex(dataRecordIndexPointer1);
+            _dataRecordIndexStorage.AddToIndex(dataRecordIndexPointer12);
+            _dataRecordIndexStorage.AddToIndex(dataRecordIndexPointer2);
 
-            var isFound = _dataRecordIndexStore.TryGetIndex(dataRecordIndexPointer12.DataRecordId, out var pointer);
-            var notFound13 = _dataRecordIndexStore.TryGetIndex(13, out var defaultPointer);
+            var isFound = _dataRecordIndexStorage.TryGetIndex(dataRecordIndexPointer12.DataRecordId, out var pointer);
+            var notFound13 = _dataRecordIndexStorage.TryGetIndex(13, out var defaultPointer);
 
             Assert.Multiple(() =>
             {
@@ -103,9 +105,9 @@ namespace Storage.Tests.DataRecordIndexStore
                 dataRecordIndexPointer3
            );
 
-            _dataRecordIndexStore.AddToIndex(multipageIndex);
+            _dataRecordIndexStorage.AddToIndex(multipageIndex);
 
-            var isFound = _dataRecordIndexStore.TryGetIndex(multipageIndex.DataRecordId, out var pointer);
+            var isFound = _dataRecordIndexStorage.TryGetIndex(multipageIndex.DataRecordId, out var pointer);
 
             Assert.Multiple(() =>
             {

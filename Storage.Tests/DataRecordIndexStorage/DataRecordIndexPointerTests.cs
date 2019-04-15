@@ -2,7 +2,7 @@
 using Storage.Core.Models;
 using System;
 
-namespace Storage.Tests.DataRecordIndexStore
+namespace Storage.Tests.DataRecordIndexStorage
 {
     [TestFixture]
     public class DataRecordIndexPointerTests

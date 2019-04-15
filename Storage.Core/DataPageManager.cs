@@ -32,7 +32,7 @@ namespace Storage.Core
         /// <summary>
         /// Индекс по <see cref="DataRecord.Id" />
         /// </summary>
-        private readonly IDataRecordIndexStore _dataRecordIndexStore;
+        private readonly IDataRecordIndexStorage _dataRecordIndexStorage;
 
         /// <summary>
         /// Конфигурация менеджера страниц.
@@ -88,7 +88,7 @@ namespace Storage.Core
             Name = config.Name;
             _dataPageFileNamingStrategy = new HierarchyFileNamingStrategy(_config.Directory);
             _dataPages = new ConcurrentDictionary<int, DataPage>();
-            _dataRecordIndexStore = new DataRecordIndexStore(_config.Directory);
+            _dataRecordIndexStorage = new DataRecordIndexStorage(_config.Directory, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(500)));
             LoadMetaData();
         }
 
@@ -114,7 +114,7 @@ namespace Storage.Core
                 // то пишем в текущую страницу.
                 currentDataPage.TrySaveData(record.Id, data, out var dataOffset);
                 // добавляем в индекс
-                _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
+                _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
                         record.Id,
                         currentDataPage.PageId,
                         dataOffset,
@@ -182,7 +182,7 @@ namespace Storage.Core
 
             // Первый индекс сделаем основным, остальные как дополнения.
             var index = dataRecordIndexPointers.First();
-            _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
+            _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
                     index.DataRecordId,
                     index.DataPageNumber,
                     index.Offset,
@@ -199,7 +199,7 @@ namespace Storage.Core
         /// <returns>Контейнер данных.</returns>
         public DataRecord Read(long recordId)
         {
-            if (_dataRecordIndexStore.TryGetIndex(recordId, out var index))
+            if (_dataRecordIndexStorage.TryGetIndex(recordId, out var index))
             {
                 return new DataRecord(GetDataRecordBytes(index));
             }
@@ -237,7 +237,7 @@ namespace Storage.Core
         /// <returns><see cref="IEnumerable{TDataRecord}"/> с указанного номера записи.</returns>
         public IEnumerable<DataRecord> AsEnumerable(long fromRecordId)
         {
-            return _dataRecordIndexStore.AsEnumerable(fromRecordId)
+            return _dataRecordIndexStorage.AsEnumerable(fromRecordId)
                 .Select(recordIndexPointer => new DataRecord(GetDataRecordBytes(recordIndexPointer)));
         }
 
@@ -246,7 +246,7 @@ namespace Storage.Core
         /// </summary>
         public void Dispose()
         {
-            _dataRecordIndexStore?.Dispose();
+            _dataRecordIndexStorage?.Dispose();
             foreach (var dataPage in _dataPages)
             {
                 dataPage.Value?.Dispose();
@@ -266,7 +266,7 @@ namespace Storage.Core
         {
             lock (_createDataPageLock)
             {
-                _dataRecordIndexStore.Clear();
+                _dataRecordIndexStorage.Clear();
 
                 // Соберем все локальные индексы из метаданных страниц, сгруппировав по идентификатору записи.
                 var localIndexItems = _dataPages.Where(d => d.Key >= dataPageId)
@@ -287,7 +287,7 @@ namespace Storage.Core
 
                     // Первый индекс сделаем основным, остальные как дополнения.
                     var index = dataRecordIndexPointers.First();
-                    _dataRecordIndexStore.AddToIndex(new DataRecordIndexPointer(
+                    _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
                             index.DataRecordId,
                             index.DataPageNumber,
                             index.Offset,

@@ -27,10 +27,26 @@ namespace Storage.Core.Configuration
         /// <summary>
         /// Размер буфера для автоматической записи на диск.
         /// <para>
-        /// default: 30% от размера страницы.
+        /// default: 16384 байт.
         /// </para>
         /// </summary>
         public int BufferSize { get; }
+
+        /// <summary>
+        /// Размер буффера для чтения.
+        /// <para>
+        /// default: 4096 байт.
+        /// </para>
+        /// </summary>
+        public int ReadBufferSize { get; }
+
+        /// <summary>
+        /// Максимальное количество читателей файла.
+        /// <para>
+        /// default: 5.
+        /// </para>
+        /// </summary>
+        public int MaxReaderCount { get; }
 
         #endregion Свойства
 
@@ -43,12 +59,23 @@ namespace Storage.Core.Configuration
         /// <param name="pageSize">Размер страницы.</param>
         /// <param name="autoFlushInterval">Временной интервал, между автоматическим сохранением на диск. </param>
         /// <param name="bufferSize">Размер буфера для автоматической записи на диск.</param>
-        public DataPageConfig(string managerName, int pageSize, TimeSpan autoFlushInterval, int? bufferSize = null)
+        /// <param name="readBufferSize">Размер буффера для чтения.</param>
+        /// <param name="maxReaderCount">Максимальное количество читателей файла.</param>
+        public DataPageConfig(
+            string managerName,
+            int pageSize,
+            TimeSpan autoFlushInterval,
+            int bufferSize = 16384,
+            int readBufferSize = 4096,
+            int maxReaderCount = 5
+        )
         {
             DataManagerName = managerName;
             PageSize = pageSize;
-            BufferSize = bufferSize ?? (int)Math.Round(pageSize * 0.3m, MidpointRounding.AwayFromZero);
+            BufferSize = bufferSize;
+            ReadBufferSize = readBufferSize;
             AutoFlushInterval = autoFlushInterval;
+            MaxReaderCount = maxReaderCount;
         }
 
         #endregion Конструктор

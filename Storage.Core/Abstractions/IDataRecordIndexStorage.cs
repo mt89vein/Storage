@@ -7,7 +7,7 @@ namespace Storage.Core.Abstractions
     /// <summary>
     /// Индекс по <see cref="DataRecord" />
     /// </summary>
-    public interface IDataRecordIndexStore : IDisposable
+    public interface IDataRecordIndexStorage : IDisposable
     {
         /// <summary>
         /// Попытаться найти из индекса.

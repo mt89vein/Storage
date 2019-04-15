@@ -1,10 +1,9 @@
 ﻿using NUnit.Framework;
 using Storage.Core.Configuration;
+using Storage.Core.Models;
 using System;
 using System.IO;
 using System.Text;
-using System.Threading.Tasks;
-using Storage.Core.Models;
 
 namespace Storage.Tests.DataPage
 {
@@ -34,7 +33,7 @@ namespace Storage.Tests.DataPage
 
         [Test]
         [Description("Проверка корректной записи в файл. Инициализирует страницу с нуля.")]
-        public async Task CorrectlyCreatesAndWritesToFile()
+        public void CorrectlyCreatesAndWritesToFile()
         {
             var path = Path.Combine(MockFilesDirectory, "write-to-file-test");
 
@@ -56,7 +55,6 @@ namespace Storage.Tests.DataPage
             {
                 currentOffset = _config.PageSize - bytes.Length;
                 dataPage.TrySaveData(dataRecord.Id, bytes, out offset);
-                await Task.Delay(650); // даём время на автосохранение.
                 dataRecordReaded = dataPage.Read(offset, bytes.Length);
                 freeSpaceLength = dataPage.GetFreeSpaceLength();
             }

@@ -1,19 +1,21 @@
 ﻿using NUnit.Framework;
+using Storage.Core.Configuration;
 using Storage.Core.Models;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 
-namespace Storage.Tests.DataRecordIndexStore
+namespace Storage.Tests.DataRecordIndexStorage
 {
     [TestFixture, Description("Тесты на корректную работу B-tree индекса (проверки чтения/записи в файлы)")]
-    public class DataRecordIndexStoreFileTests
+    public class DataRecordIndexStorageFileTests
     {
         #region Константы
 
         /// <summary>
         /// Директория с подготовленными файлами для проверки чтения/записи.
         /// </summary>
-        private const string MockFilesDirectory = "./DataRecordIndexStore/MockFiles";
+        private const string MockFilesDirectory = "./DataRecordIndexStorage/MockFiles";
 
         #endregion Константы
 
@@ -33,10 +35,10 @@ namespace Storage.Tests.DataRecordIndexStore
             var dataRecordIndexPointer = new DataRecordIndexPointer(1, 10, 0, 132);
             DataRecordIndexPointer foundPointer;
             bool isFound;
-            using (var dataRecordIndexStore = new Core.DataRecordIndexStore(path))
+            using (var dataRecordIndexStore = new Core.DataRecordIndexStorage(path, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200))))
             {
                 dataRecordIndexStore.AddToIndex(dataRecordIndexPointer);
-                await Task.Delay(650); // даём время на автосохранение.
+                await Task.Delay(250); // даём время на автосохранение.
                 isFound = dataRecordIndexStore.TryGetIndex(dataRecordIndexPointer.DataRecordId, out foundPointer);
             }
 
@@ -56,7 +58,7 @@ namespace Storage.Tests.DataRecordIndexStore
             DataRecordIndexPointer dataRecordIndexPointer;
             DataRecordIndexPointer foundIndexPointer;
             bool isFound;
-            using (var dataRecordIndexStore = new Core.DataRecordIndexStore(path))
+            using (var dataRecordIndexStore = new Core.DataRecordIndexStorage(path, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200))))
             {
                 dataRecordIndexPointer = new DataRecordIndexPointer(1, 10, 0, 132);
 
@@ -84,7 +86,7 @@ namespace Storage.Tests.DataRecordIndexStore
             DataRecordIndexPointer multipageIndex;
             DataRecordIndexPointer foundPointer;
             bool isFound;
-            using (var dataRecordIndexStore = new Core.DataRecordIndexStore(path))
+            using (var dataRecordIndexStore = new Core.DataRecordIndexStorage(path, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200))))
             {
                 var dataRecordIndexPointer1 = new DataRecordIndexPointer(1, 1, 0, 512);
                 var dataRecordIndexPointer2 = new DataRecordIndexPointer(1, 2, 0, 512);
@@ -100,7 +102,7 @@ namespace Storage.Tests.DataRecordIndexStore
                 );
 
                 dataRecordIndexStore.AddToIndex(multipageIndex);
-                await Task.Delay(650); // даём время на автосохранение.
+                await Task.Delay(250); // даём время на автосохранение.
                 isFound = dataRecordIndexStore.TryGetIndex(multipageIndex.DataRecordId, out foundPointer);
             }
 
@@ -121,7 +123,7 @@ namespace Storage.Tests.DataRecordIndexStore
             DataRecordIndexPointer multipageIndex;
             DataRecordIndexPointer foundPointer;
             bool isFound;
-            using (var dataRecordIndexStore = new Core.DataRecordIndexStore(path))
+            using (var dataRecordIndexStore = new Core.DataRecordIndexStorage(path, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200))))
             {
                 var dataRecordIndexPointer1 = new DataRecordIndexPointer(1, 1, 0, 512);
                 var dataRecordIndexPointer2 = new DataRecordIndexPointer(1, 2, 0, 512);

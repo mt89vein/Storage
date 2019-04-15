@@ -1,8 +1,8 @@
 ﻿using FastCollections.Unsafe;
 using Storage.Core.Abstractions;
+using Storage.Core.Configuration;
 using Storage.Core.Helpers;
 using Storage.Core.Models;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -10,11 +10,16 @@ using System.Linq;
 namespace Storage.Core
 {
     /// <summary>
-    /// Индекс по <see cref="DataRecord" />
+    /// Хранилище индексов.
     /// </summary>
-    public class DataRecordIndexStore : IDataRecordIndexStore
+    public class DataRecordIndexStorage : IDataRecordIndexStorage
     {
         #region Поля
+
+        /// <summary>
+        /// Конфигурация хранилища индексов.
+        /// </summary>
+        private readonly DataRecordIndexStoreConfig _config;
 
         /// <summary>
         /// BPlusTree дерево.
@@ -25,11 +30,6 @@ namespace Storage.Core
         /// Буферизированый писатель в файл.
         /// </summary>
         private BufferedFileWriter _bufferedFileWriter;
-
-        /// <summary>
-        /// Размер буфера.
-        /// </summary>
-        private const int BufferSize = 8096;
 
         /// <summary>
         /// Название и путь к файлу - индексу.
@@ -44,13 +44,15 @@ namespace Storage.Core
         #endregion Поля
 
         #region Конструктор
-        // TODO: IndexStoreConfig { FlushTime, BufferSize }
+
         /// <summary>
         /// Инициализирует хранилище индекса.
         /// </summary>
         /// <param name="directory">Путь к файлу индекса.</param>
-        public DataRecordIndexStore(string directory)
+        /// <param name="config">Конфигурация хранилища индексов.</param>
+        public DataRecordIndexStorage(string directory, DataRecordIndexStoreConfig config)
         {
+            _config = config;
             _tree = new BTree<long, DataRecordIndexPointer>();
             _fileName = Path.Combine(directory, "data-record-index-pointers.index");
             InitializeBufferedFileWriter();
@@ -147,14 +149,14 @@ namespace Storage.Core
         /// </summary>
         private void InitializeBufferedFileWriter()
         {
-            _bufferedFileWriter = new BufferedFileWriter(GetFileStream(_fileName), BufferSize, TimeSpan.FromMilliseconds(500));
+            _bufferedFileWriter = new BufferedFileWriter(GetFileStream(_fileName), _config.BufferSize, _config.AutoFlushInterval);
         }
 
         /// <summary>
         /// Создать, если не существует файла для хранения индекса
         /// </summary>
         /// <param name="fileName"></param>
-        private static FileStream GetFileStream(string fileName)
+        private FileStream GetFileStream(string fileName)
         {
             var fileInfo = new FileInfo(fileName);
 
@@ -168,7 +170,7 @@ namespace Storage.Core
                 FileMode.OpenOrCreate,
                 FileAccess.ReadWrite,
                 FileShare.ReadWrite,
-                BufferSize,
+                _config.BufferSize,
                 FileOptions.None
             );
 
@@ -191,7 +193,7 @@ namespace Storage.Core
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite,
-                    BufferSize,
+                    _config.BufferSize,
                     FileOptions.SequentialScan
                 ))
                 {

@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="DataRecordIndexStore\mockFiles\**">
+    <None Update="DataRecordIndexStorage\mockFiles\**">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Update="DataPage\mockFiles\**">

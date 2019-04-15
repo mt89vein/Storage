@@ -1,4 +1,5 @@
-﻿using Storage.Core.Configuration;
+﻿using Microsoft.Extensions.ObjectPool;
+using Storage.Core.Configuration;
 using Storage.Core.Helpers;
 using System;
 using System.Collections.Generic;
@@ -38,6 +39,11 @@ namespace Storage.Core.Models
         private readonly string _fileName;
 
         /// <summary>
+        /// Пул читателей файла.
+        /// </summary>
+        private readonly DefaultObjectPool<FileReaderUnit> _fileReaderUnitsPool;
+
+        /// <summary>
         /// Объект синхронизации для записи в страницу.
         /// </summary>
         private readonly object _writeSyncObject = new object();
@@ -50,7 +56,7 @@ namespace Storage.Core.Models
         /// <summary>
         /// Заголовок страницы.
         /// </summary>
-        public DataPageHeader Header { get; private set; }
+        private DataPageHeader _header;
 
         // TODO: тесты на корректность записи индексов.
         /// <summary>
@@ -87,6 +93,10 @@ namespace Storage.Core.Models
             _fileName = fileName;
             PageId = pageId;
             Initialize(isCompleted);
+            _fileReaderUnitsPool = new DefaultObjectPool<FileReaderUnit>(
+                new FileReaderUnitPooledObjectPolicy(_fileName, config.ReadBufferSize),
+                config.MaxReaderCount
+            );
         }
 
         #endregion Конструктор
@@ -118,7 +128,7 @@ namespace Storage.Core.Models
         /// <returns>Количество байт, которое можно записать на данную страницу.</returns>
         public int GetFreeSpaceLength()
         {
-            return Header.UpperOffset - Header.LowerOffset;
+            return _header.UpperOffset - _header.LowerOffset;
         }
 
         /// <summary>
@@ -127,7 +137,7 @@ namespace Storage.Core.Models
         /// <returns>Количество байт, которое можно записать на данную страницу.</returns>
         public int GetFreeSpaceFor(int length)
         {
-            var freeSpace = Header.UpperOffset - Header.LowerOffset;
+            var freeSpace = _header.UpperOffset - _header.LowerOffset;
 
             // Если места недостаточно даже чтобы записать указатель, возвращаем 0.
             if (freeSpace < DataPageLocalIndex.Size)
@@ -161,10 +171,10 @@ namespace Storage.Core.Models
             {
                 lock (_writeSyncObject)
                 {
-                    Header.UpperOffset -= data.Length;
-                    Header.LowerOffset += DataPageLocalIndex.Size;
+                    _header.UpperOffset -= data.Length;
+                    _header.LowerOffset += DataPageLocalIndex.Size;
 
-                    offset = Header.UpperOffset;
+                    offset = _header.UpperOffset;
 
                     _bufferedFileWriter.SetPosition(offset);
                     _bufferedFileWriter.Write(data, 0, data.Length);
@@ -193,7 +203,7 @@ namespace Storage.Core.Models
         private void UpdateHeader()
         {
             _bufferedFileWriter.SetPosition(0);
-            _bufferedFileWriter.Write(Header.GetBytes(), 0, DataPageHeader.Size);
+            _bufferedFileWriter.Write(_header.GetBytes(), 0, DataPageHeader.Size);
         }
 
         /// <summary>
@@ -232,24 +242,17 @@ namespace Storage.Core.Models
         {
             LastActiveTime = DateTime.UtcNow;
 
-            // TODO: use readerPool
-            using (var fileStream =
-                new FileStream(
-                    _fileName,
-                    FileMode.Open,
-                    FileAccess.Read,
-                    FileShare.ReadWrite,
-                    _config.BufferSize,
-                    FileOptions.RandomAccess
-                )
-            )
+            var fileReaderUnit = _fileReaderUnitsPool.Get();
+            try
             {
-                fileStream.Position = offset;
-                using (var reader = new BinaryReader(fileStream))
-                {
-                    return reader.ReadBytes(length);
-                    // TODO: cache record by offset
-                }
+                fileReaderUnit.Reader.BaseStream.Position = offset;
+
+                // TODO: cache record
+                return fileReaderUnit.Reader.ReadBytes(length);
+            }
+            finally
+            {
+                _fileReaderUnitsPool.Return(fileReaderUnit);
             }
         }
 
@@ -292,7 +295,7 @@ namespace Storage.Core.Models
                     // файл новый, поэтому заполняем нулями.
                     fileStream.SetLength(_config.PageSize);
 
-                    Header = new DataPageHeader
+                    _header = new DataPageHeader
                     { 
                         // для нового файла нижняя граница - после заголовка
                         LowerOffset = DataPageHeader.Size,
@@ -329,7 +332,7 @@ namespace Storage.Core.Models
             ReadHeader();
 
             // если LowerOffset больше чем размер заголовка, то значит есть данные на странице.
-            if (Header.LowerOffset > DataPageHeader.Size)
+            if (_header.LowerOffset > DataPageHeader.Size)
             {
                 // читаем локальные индексы.
                 ReadDataPageLocalIndexes(stream);
@@ -341,7 +344,7 @@ namespace Storage.Core.Models
                 stream.Seek(0, SeekOrigin.Begin);
                 stream.Read(buffer, 0, DataPageHeader.Size);
                 var spanBuffer = buffer.AsSpan();
-                Header = new DataPageHeader
+                _header = new DataPageHeader
                 {
                     LowerOffset = spanBuffer.DecodeInt(0, out var nextStartOffset),
                     UpperOffset = spanBuffer.DecodeInt(nextStartOffset, out _)
@@ -357,7 +360,7 @@ namespace Storage.Core.Models
         {
             _localItems.Clear();
 
-            var localIndexSize = Header.LowerOffset - DataPageHeader.Size;
+            var localIndexSize = _header.LowerOffset - DataPageHeader.Size;
             var localItemsCount = localIndexSize / DataPageLocalIndex.Size;
             var buffer = new byte[localIndexSize];
             stream.Read(buffer, 0, localIndexSize);
@@ -382,6 +385,8 @@ namespace Storage.Core.Models
         private void SetCompleted()
         {
             // TODO: делаем пометку, что страница завершена. (например делаем файл readonly, уничтожаем fileWriter.. так как он больше не нужен и т.д)
+
+            //_bufferedFileWriter?.Dispose();
         }
 
         #endregion Методы (private)
