@@ -12,7 +12,7 @@ namespace Storage.Tests.DataRecord
         [Description("Корректное восстановление из пустого экземпляра.")]
         public void EmptyDataRecordReconstituteValid()
         {
-            var left = new Core.Models.DataRecord(0, new byte[0]);
+            var left = Core.Models.DataRecord.Create(new byte[0]);
             var right = new Core.Models.DataRecord(left.GetBytes());
 
             Assert.Multiple(() =>
@@ -40,8 +40,8 @@ namespace Storage.Tests.DataRecord
         [Description("Проверка на корректность Equals записи.")]
         public void CorrectRecordEquals()
         {
-            var left = new Core.Models.DataRecord(1, new byte[100]);
-            var right = new Core.Models.DataRecord(1, new byte[99]);
+            var left = Core.Models.DataRecord.Create(new byte[100]);
+            var right = Core.Models.DataRecord.Create(new byte[99]);
 
             Assert.AreNotEqual(left, right);
         }

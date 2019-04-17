@@ -45,7 +45,8 @@ namespace Storage.Tests.DataPage
             }
 
             const string stringToWrite = "Hello world!";
-            var dataRecord = new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(stringToWrite));
+            var dataRecord = Core.Models.DataRecord.Create(Encoding.UTF8.GetBytes(stringToWrite));
+            dataRecord.SetDataRecordId(1);
             var bytes = dataRecord.GetBytes();
             int currentOffset;
             int offset;

@@ -29,7 +29,7 @@ namespace Storage.Tests.DataRecordIndexStorage
             if (fileInfo.Exists)
             {
                 fileInfo.Delete();
-                await Task.Delay(300);
+                await Task.Delay(100);
             }
 
             var dataRecordIndexPointer = new DataRecordIndexPointer(1, 10, 0, 132);
@@ -38,7 +38,6 @@ namespace Storage.Tests.DataRecordIndexStorage
             using (var dataRecordIndexStore = new Core.DataRecordIndexStorage(path, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(200))))
             {
                 dataRecordIndexStore.AddToIndex(dataRecordIndexPointer);
-                await Task.Delay(250); // даём время на автосохранение.
                 isFound = dataRecordIndexStore.TryGetIndex(dataRecordIndexPointer.DataRecordId, out foundPointer);
             }
 
@@ -80,7 +79,7 @@ namespace Storage.Tests.DataRecordIndexStorage
             if (fileInfo.Exists)
             {
                 fileInfo.Delete();
-                await Task.Delay(300);
+                await Task.Delay(100);
             }
 
             DataRecordIndexPointer multipageIndex;
@@ -102,7 +101,6 @@ namespace Storage.Tests.DataRecordIndexStorage
                 );
 
                 dataRecordIndexStore.AddToIndex(multipageIndex);
-                await Task.Delay(250); // даём время на автосохранение.
                 isFound = dataRecordIndexStore.TryGetIndex(multipageIndex.DataRecordId, out foundPointer);
             }
 

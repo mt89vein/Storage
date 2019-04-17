@@ -139,12 +139,26 @@ namespace Storage.Core.Models
             const int offset = 386508603;
             const int multiplier = -1521134295;
 
-            var hashCode = offset;
-            hashCode = hashCode * multiplier + DataRecordId.GetHashCode();
-            hashCode = hashCode * multiplier + DataPageNumber.GetHashCode();
-            hashCode = hashCode * multiplier + Offset.GetHashCode();
-            hashCode = hashCode * multiplier + Length.GetHashCode();
-            return hashCode;
+            unchecked
+            {
+                var hashCode = offset;
+                hashCode = hashCode * multiplier + DataRecordId.GetHashCode();
+                hashCode = hashCode * multiplier + DataPageNumber.GetHashCode();
+                hashCode = hashCode * multiplier + Offset.GetHashCode();
+                hashCode = hashCode * multiplier + Length.GetHashCode();
+
+                return hashCode;
+            }
+        }
+
+        public static bool operator ==(DataRecordIndexPointer left, DataRecordIndexPointer right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(DataRecordIndexPointer left, DataRecordIndexPointer right)
+        {
+            return !left.Equals(right);
         }
 
         #endregion Equality

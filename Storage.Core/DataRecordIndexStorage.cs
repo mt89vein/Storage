@@ -86,7 +86,9 @@ namespace Storage.Core
         /// <returns>Итератор.</returns>
         public IEnumerable<DataRecordIndexPointer> AsEnumerable(long fromRecordId = 0)
         {
-            return _tree.From(fromRecordId).AsEnumerable().Select(t => t.Value);
+            return _tree.IsEmpty 
+                ? Enumerable.Empty<DataRecordIndexPointer>() 
+                : _tree.From(fromRecordId).AsEnumerable().Select(t => t.Value);
         }
 
         /// <summary>

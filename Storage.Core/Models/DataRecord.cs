@@ -1,6 +1,8 @@
 ﻿using Storage.Core.Helpers;
 using System;
+using System.Runtime.CompilerServices;
 
+[assembly: InternalsVisibleTo("Storage.Tests")]
 namespace Storage.Core.Models
 {
     /// <summary>
@@ -18,7 +20,7 @@ namespace Storage.Core.Models
         /// <summary>
         /// Идентификатор записи в хранилище.
         /// </summary>
-        public long Id { get; }
+        public long Id { get; private set; }
 
         /// <summary>
         /// Длина данных, включая метаданные (Id и Length).
@@ -39,7 +41,7 @@ namespace Storage.Core.Models
         /// </summary>
         /// <param name="recordId">Идентификатор записи.</param>
         /// <param name="body">Данные для хранения.</param>
-        public DataRecord(long recordId, byte[] body)
+        private DataRecord(long recordId, byte[] body)
         {
             Body = body;
             Id = recordId;
@@ -50,7 +52,7 @@ namespace Storage.Core.Models
         /// Создает новый инстанс из указанного массива байт.
         /// </summary>
         /// <param name="bytes"></param>
-        public DataRecord(byte[] bytes)
+        internal DataRecord(byte[] bytes)
         {
             if (bytes.Length < MetaInfoSize)
             {
@@ -67,6 +69,17 @@ namespace Storage.Core.Models
         #region Методы (public)
 
         /// <summary>
+        /// Фабричный метод: создает новый экземпляр записи с указанным телом.
+        /// Идентификатор по-умолчанию 0. Присваивается при сохранении.
+        /// </summary>
+        /// <param name="body">Массив байт.</param>
+        /// <returns>Экземпляр записи.</returns>
+        public static DataRecord Create(byte[] body)
+        {
+            return new DataRecord(0, body);
+        }
+
+        /// <summary>
         /// Получить в виде массива байт.
         /// </summary>
         public byte[] GetBytes()
@@ -79,6 +92,19 @@ namespace Storage.Core.Models
         }
 
         #endregion Методы (public)
+
+        #region Методы (internal)
+
+        /// <summary>
+        /// Используется для установки идентификатора менеджером страниц.
+        /// </summary>
+        /// <param name="id">Идентификатор записи.</param>
+        internal void SetDataRecordId(long id)
+        {
+            Id = id;
+        }
+
+        #endregion Методы (internal)
 
         #region Equality
 

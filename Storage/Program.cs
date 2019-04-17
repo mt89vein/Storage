@@ -42,12 +42,11 @@ namespace Storage
                     Name = "Another one dog 3"
                 };
 
-                dataPageManager.Save(new DataRecord(1, dog.GetBytes()));
-                dataPageManager.Save(new DataRecord(2, anotherDog.GetBytes()));
-                dataPageManager.Save(new DataRecord(3, anotherOneDog.GetBytes()));
+                dataPageManager.Save(DataRecord.Create(dog.GetBytes()));
+                dataPageManager.Save(DataRecord.Create(anotherDog.GetBytes()));
+                dataPageManager.Save(DataRecord.Create(anotherOneDog.GetBytes()));
 
                 Thread.Sleep(1000); // даём время на срабатывание автосохранения.
-
                 var dataRecord1 = dataPageManager.Read(1);
                 var dataRecord2 = dataPageManager.Read(2);
                 var dataRecord3 = dataPageManager.Read(3);

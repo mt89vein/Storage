@@ -16,7 +16,6 @@ namespace Storage.Core
 	 * Зона ответственности: управление списком DataPage, обновление индекса при вставке, управление созданием новых страничек, метод для очистки старых.
 	 * Загрузка из диска индексов и имеющихся страниц данных (карта)
 	 */
-    // TODO: DataPageManager должен сам менеджить RecordId и инкрементить, а сверху прилетать только массивы байт.
     /// <summary>
     /// Менеджер страниц данных.
     /// </summary>
@@ -48,6 +47,11 @@ namespace Storage.Core
         /// Лок объект для создания страницы.
         /// </summary>
         private readonly object _createDataPageLock = new object();
+
+        /// <summary>
+        /// Счетчик последовательности.
+        /// </summary>
+        private long _currentDataRecordId;
 
         #endregion Поля
 
@@ -90,6 +94,12 @@ namespace Storage.Core
             _dataPages = new ConcurrentDictionary<int, DataPage>();
             _dataRecordIndexStorage = new DataRecordIndexStorage(_config.Directory, new DataRecordIndexStoreConfig(TimeSpan.FromMilliseconds(500)));
             LoadMetaData();
+
+            var lastRecordIndex = _dataRecordIndexStorage.AsEnumerable().Reverse().FirstOrDefault();
+            if (lastRecordIndex != default)
+            {
+                _currentDataRecordId = lastRecordIndex.DataRecordId;
+            }
         }
 
         #endregion Конструктор
@@ -99,97 +109,103 @@ namespace Storage.Core
         /// <summary>
         /// Сохранить данные на диск.
         /// </summary>
-        /// <param name="record">Модель данных.</param>
+        /// <param name="record">Массив байт.</param>
         public void Save(DataRecord record)
         {
-            var data = record.GetBytes();
-            var dataLength = data.Length;
-
-            // пишем последовательно, поэтому получаем всегда для записи последнюю страницу.
-            var currentDataPage = GetLastPage();
-
-            // если на текущей странице хватает свободного места для данных, указанной длины
-            if (currentDataPage.HasEnoughSpaceFor(dataLength))
+            lock (_createDataPageLock)
             {
-                // то пишем в текущую страницу.
-                currentDataPage.TrySaveData(record.Id, data, out var dataOffset);
-                // добавляем в индекс
-                _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
-                        record.Id,
-                        currentDataPage.PageId,
-                        dataOffset,
-                        dataLength
-                    )
-                );
+                var recordId = ++_currentDataRecordId;
+                record.SetDataRecordId(recordId);
 
-                return;
-            }
+                var data = record.GetBytes();
+                var dataLength = data.Length;
 
-            // если же места не хватило на одной странице, то уже пишем в несколько:
-            var dataRecordIndexPointers = new List<DataRecordIndexPointer>();
-            var writtenBytes = 0;
-            var dataSpan = data.AsSpan();
-            
-            // узнаем, сколько можно записать в текущую страницу:
-            var freeSpaceLength = currentDataPage.GetFreeSpaceFor(dataSpan.Length);
+                // пишем последовательно, поэтому получаем всегда для записи последнюю страницу.
+                var currentDataPage = GetLastPage();
 
-            // если оказалось что мы что-то можем записать.
-            if (freeSpaceLength > 0)
-            {
-                // то срезаем кусок данных
-                var firstWrite = dataSpan.Slice(0, freeSpaceLength).ToArray();
-
-                // и заполним оставшееся место в текущей странице 
-                if (currentDataPage.TrySaveData(record.Id, firstWrite, out var offset))
+                // если на текущей странице хватает свободного места для данных, указанной длины
+                if (currentDataPage.HasEnoughSpaceFor(dataLength))
                 {
-                    dataRecordIndexPointers.Add(new DataRecordIndexPointer(
-                            record.Id,
+                    // то пишем в текущую страницу.
+                    currentDataPage.TrySaveData(recordId, data, out var dataOffset);
+                    // добавляем в индекс
+                    _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
+                            recordId,
                             currentDataPage.PageId,
-                            offset,
-                            firstWrite.Length
+                            dataOffset,
+                            dataLength
                         )
                     );
+
+                    return;
                 }
 
-                writtenBytes += freeSpaceLength;
-            }
+                // если же места не хватило на одной странице, то уже пишем в несколько:
+                var dataRecordIndexPointers = new List<DataRecordIndexPointer>();
+                var writtenBytes = 0;
+                var dataSpan = data.AsSpan();
 
-            // и до тех пор, пока все не будет записано...
-            while (writtenBytes < dataLength)
-            {
-                // создадём новую страницу.
-                currentDataPage = CreateNew();
+                // узнаем, сколько можно записать в текущую страницу:
+                var freeSpaceLength = currentDataPage.GetFreeSpaceFor(dataSpan.Length);
 
-                // получим кол-во байт, которое можно записать в текущую страницу.
-                var bytesToWrite =  currentDataPage.GetFreeSpaceFor(dataLength - writtenBytes);
+                // если оказалось что мы что-то можем записать.
+                if (freeSpaceLength > 0)
+                {
+                    // то срезаем кусок данных
+                    var firstWrite = dataSpan.Slice(0, freeSpaceLength).ToArray();
 
-                Debug.Assert(bytesToWrite != 0);
+                    // и заполним оставшееся место в текущей странице 
+                    if (currentDataPage.TrySaveData(recordId, firstWrite, out var offset))
+                    {
+                        dataRecordIndexPointers.Add(new DataRecordIndexPointer(
+                                recordId,
+                                currentDataPage.PageId,
+                                offset,
+                                firstWrite.Length
+                            )
+                        );
+                    }
 
-                // создаем разрез для записи.
-                var slice = dataSpan.Slice(writtenBytes, bytesToWrite).ToArray();
+                    writtenBytes += freeSpaceLength;
+                }
 
-                // сохраняем.
-                currentDataPage.TrySaveData(record.Id, slice, out var offset);
-                dataRecordIndexPointers.Add(new DataRecordIndexPointer(
-                        record.Id,
-                        currentDataPage.PageId,
-                        offset,
-                        slice.Length
+                // и до тех пор, пока все не будет записано...
+                while (writtenBytes < dataLength)
+                {
+                    // создадём новую страницу.
+                    currentDataPage = CreateNew();
+
+                    // получим кол-во байт, которое можно записать в текущую страницу.
+                    var bytesToWrite = currentDataPage.GetFreeSpaceFor(dataLength - writtenBytes);
+
+                    Debug.Assert(bytesToWrite != 0);
+
+                    // создаем разрез для записи.
+                    var slice = dataSpan.Slice(writtenBytes, bytesToWrite).ToArray();
+
+                    // сохраняем.
+                    currentDataPage.TrySaveData(recordId, slice, out var offset);
+                    dataRecordIndexPointers.Add(new DataRecordIndexPointer(
+                            recordId,
+                            currentDataPage.PageId,
+                            offset,
+                            slice.Length
+                        )
+                    );
+                    writtenBytes += slice.Length;
+                }
+
+                // Первый индекс сделаем основным, остальные как дополнения.
+                var index = dataRecordIndexPointers.First();
+                _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
+                        index.DataRecordId,
+                        index.DataPageNumber,
+                        index.Offset,
+                        index.Length,
+                        dataRecordIndexPointers.Skip(1).ToArray()
                     )
-                );
-                writtenBytes += slice.Length;
+                ); 
             }
-
-            // Первый индекс сделаем основным, остальные как дополнения.
-            var index = dataRecordIndexPointers.First();
-            _dataRecordIndexStorage.AddToIndex(new DataRecordIndexPointer(
-                    index.DataRecordId,
-                    index.DataPageNumber,
-                    index.Offset,
-                    index.Length,
-                    dataRecordIndexPointers.Skip(1).ToArray()
-                )
-            );
         }
 
         /// <summary>

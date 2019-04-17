@@ -46,13 +46,15 @@ namespace Storage.Tests.DataManager
                     Assert.IsNull(dataPageManager.Read(3));
                 });
 
+                dataPageManager.Save(Core.Models.DataRecord.Create(Encoding.UTF8.GetBytes(new string('1', 100))));
+
                 var data = new string('5', 500);
-                dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(new string('1', 100))));
-                dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data)));
+                var dataRecord = Core.Models.DataRecord.Create(Encoding.UTF8.GetBytes(data));
+                dataPageManager.Save(dataRecord);
 
-                var dataRecord = dataPageManager.Read(2);
+                var readedDataRecord = dataPageManager.Read(dataRecord.Id);
 
-                Assert.AreEqual(data, Encoding.UTF8.GetString(dataRecord.Body));
+                Assert.AreEqual(data, Encoding.UTF8.GetString(readedDataRecord.Body));
             }
         }
 
@@ -76,11 +78,13 @@ namespace Storage.Tests.DataManager
 
                 var data1 = new string('1', 50);
                 var data2 = new string('2', 70);
-                dataPageManager.Save(new Core.Models.DataRecord(1, Encoding.UTF8.GetBytes(data1)));
-                dataPageManager.Save(new Core.Models.DataRecord(2, Encoding.UTF8.GetBytes(data2)));
+                var dr1 = Core.Models.DataRecord.Create(Encoding.UTF8.GetBytes(data1));
+                var dr2 = Core.Models.DataRecord.Create(Encoding.UTF8.GetBytes(data2));
+                dataPageManager.Save(dr1);
+                dataPageManager.Save(dr2);
 
-                var dataRecord1 = dataPageManager.Read(1);
-                var dataRecord2 = dataPageManager.Read(2);
+                var dataRecord1 = dataPageManager.Read(dr1.Id);
+                var dataRecord2 = dataPageManager.Read(dr2.Id);
 
                 Assert.AreEqual(data1, Encoding.UTF8.GetString(dataRecord1.Body));
                 Assert.AreEqual(data2, Encoding.UTF8.GetString(dataRecord2.Body));
